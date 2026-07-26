@@ -15,6 +15,23 @@ documented Runic grammar in a prior session:
                          catalog, previously only 5 of 24 entries.
   3. KeywordTranslator - Python keyword/builtin -> rune mapping via AST,
                          previously missing entirely.
+
+Also carries the full multiscript layer — all four Runic scripts, not just
+Futhark — pulled from runic-language-system sub-skill E (Greek, Hiragana)
+and the Helix Codex Stages 5-12 (Cuneiform/Sumerian, the fourth script):
+  - GrRu (Greek):     24 letters, math meaning + separate QRen payload-class
+                       register. Math meaning is never redefined, only
+                       contextually extended.
+  - HiRu (Hiragana):  46 characters, process-flow meaning. Upstream status
+                       is PROPOSED (OQ-RLS-005), carried here as-is.
+  - CuRu (Cuneiform)  in SuRu (Sumerian) mode: 9 test glyphs (Helix Stage 5
+                       Section XXVII's 8 + Stage 7's 𒁕 empty-slot addition).
+                       Mark's "test build" status, not a finalized catalog —
+                       represented honestly as such, not silently promoted.
+  MultiscriptComposer implements the cross-script grammar: UniversalRune
+  composition ((FuRu)(GrRu)(HiRu)) and the CuRu-leading script-mode
+  declaration ((FuRu)? CuRu+ target) that Helix Stage 12 settled on,
+  superseding an earlier FuRu-leading proposal from Stage 11.
 """
 
 import ast
@@ -98,6 +115,134 @@ class RunicSymbolTable:
         'admathcircle_inner': ['raidho', 'gebo', 'kenaz', 'berkano'],
     }
 
+    # --- Script 2 of 4: GREEK (GrRu) -------------------------------------
+    # Complete 24-letter Greek alphabet, per runic-language-system sub-skill
+    # E-01. Two separate semantic registers, never conflated: the standard
+    # mathematical meaning (which a Greek letter must NEVER lose — extension
+    # is contextual, not redefinitional) and the QRen inner-ring payload-class
+    # role (a distinct register, active only inside QRen annotation context).
+    GREEK: Dict[str, str] = {
+        'alpha': 'α', 'beta': 'β', 'gamma': 'γ', 'delta': 'δ', 'epsilon': 'ε',
+        'zeta': 'ζ', 'eta': 'η', 'theta': 'θ', 'iota': 'ι', 'kappa': 'κ',
+        'lambda': 'λ', 'mu': 'μ', 'nu': 'ν', 'xi': 'ξ', 'omicron': 'ο',
+        'pi': 'π', 'rho': 'ρ', 'sigma': 'σ', 'tau': 'τ', 'upsilon': 'υ',
+        'phi': 'φ', 'chi': 'χ', 'psi': 'ψ', 'omega': 'ω',
+    }
+
+    GREEK_MATH_MEANING: Dict[str, str] = {
+        'α': 'angles, coefficients, alpha particles', 'β': 'angles, coefficients, beta decay',
+        'γ': 'Euler-Mascheroni constant, gamma function', 'δ': 'change (Δ), infinitesimal (δ), Kronecker delta',
+        'ε': 'arbitrarily small positive quantity', 'ζ': 'Riemann zeta function, damping ratio',
+        'η': 'efficiency, viscosity, conformal time', 'θ': 'angles, big-Theta notation',
+        'ι': 'subscript index', 'κ': 'curvature, conductivity',
+        'λ': 'eigenvalues, wavelength', 'μ': 'mean, micro-prefix',
+        'ν': 'frequency, kinematic viscosity', 'ξ': 'random variable',
+        'ο': 'variable', 'π': '3.14159..., circular constant',
+        'ρ': 'density, correlation', 'σ': 'standard deviation, summation',
+        'τ': 'torque, time constant', 'υ': 'rapidity (physics)',
+        'φ': 'golden ratio, phase angle', 'χ': 'chi-squared statistic',
+        'ψ': 'wave function', 'ω': 'angular frequency, last',
+    }
+
+    # QRen inner-ring payload class (separate register from GREEK_MATH_MEANING;
+    # active only inside QRen magic-circle annotation, not admathCircle).
+    GREEK_QREN_PAYLOAD_CLASS: Dict[str, str] = {
+        'α': 'URL / address / direct reference', 'β': 'binary / executable content',
+        'γ': 'structured data (JSON, YAML, config)', 'δ': 'change record / version delta',
+        'ε': 'entity / identity payload', 'ζ': 'network / distributed topology',
+        'η': 'ML model / weights / training data', 'θ': 'mathematical / geometric computation',
+        'ι': 'identity metadata / Runic index', 'κ': 'cache / memory snapshot',
+        'λ': 'logic / function / script', 'μ': 'manifest / structural map',
+        'ν': 'narrative / persona / creative', 'ξ': 'cross-reference / external link',
+        'ο': 'opcode / QRVM instruction', 'π': 'persistent archive / sealed state',
+    }
+
+    # --- Script 3 of 4: HIRAGANA (HiRu) -----------------------------------
+    # 46 base characters, per runic-language-system sub-skill E-02. Defines
+    # HOW a process BEHAVES (state transitions, flow control, temporal
+    # sequence) — distinct from Futhark (what it IS) and Greek (how it
+    # COMPUTES). Status inherited from source: PROPOSED, not yet Stage-3
+    # finalized in the Runic Language System's own tracking (OQ-RLS-005) —
+    # carried here as-is rather than silently promoted to settled canon.
+    HIRAGANA: Dict[str, str] = {
+        'a': 'あ', 'i': 'い', 'u': 'う', 'e': 'え', 'o': 'お',
+        'ka': 'か', 'ki': 'き', 'ku': 'く', 'ke': 'け', 'ko': 'こ',
+        'sa': 'さ', 'shi': 'し', 'su': 'す', 'se': 'せ', 'so': 'そ',
+        'ta': 'た', 'chi': 'ち', 'tsu': 'つ', 'te': 'て', 'to': 'と',
+        'na': 'な', 'ni': 'に', 'nu': 'ぬ', 'ne': 'ね', 'no': 'の',
+        'ha': 'は', 'hi': 'ひ', 'fu': 'ふ', 'he': 'へ', 'ho': 'ほ',
+        'ma': 'ま', 'mi': 'み', 'mu': 'む', 'me': 'め', 'mo': 'も',
+        'ya': 'や', 'yu': 'ゆ', 'yo': 'よ',
+        'ra': 'ら', 'ri': 'り', 'ru': 'る', 're': 'れ', 'ro': 'ろ',
+        'wa': 'わ', 'wo': 'を', 'n': 'ん',
+    }
+
+    HIRAGANA_MEANING: Dict[str, str] = {
+        'あ': 'start / initiation', 'い': 'input / receive', 'う': 'processing / transform',
+        'え': 'evaluate / check', 'お': 'output / emit',
+        'か': 'cache / store', 'き': 'key / trigger', 'く': 'queue / buffer',
+        'け': 'condition / predicate', 'こ': 'commit / finalize',
+        'さ': 'start sequence', 'し': 'shift / transition', 'す': 'suspend / pause',
+        'せ': 'sequence / order', 'そ': 'sort / arrange',
+        'た': 'task / job', 'ち': 'check / validate', 'つ': 'accumulate / collect',
+        'て': 'test / probe', 'と': 'transfer / move',
+        'な': 'navigate / route', 'に': 'notify / signal', 'ぬ': 'null / void',
+        'ね': 'nest / embed', 'の': 'node / point',
+        'は': 'handle / process', 'ひ': 'iterate / repeat', 'ふ': 'filter / select',
+        'へ': 'halt / stop', 'ほ': 'hold / maintain',
+        'ま': 'map / associate', 'み': 'merge / combine', 'む': 'mutate / modify',
+        'め': 'measure / quantify', 'も': 'monitor / watch',
+        'や': 'yield / produce', 'ゆ': 'union / join', 'よ': 'call / invoke',
+        'ら': 'read / fetch', 'り': 'release / free', 'る': 'run / execute',
+        'れ': 'return / respond', 'ろ': 'roll back / undo',
+        'わ': 'wait / delay', 'を': 'write / persist', 'ん': 'end marker / null',
+    }
+
+    # --- Script 4 of 4: CUNEIFORM (CuRu) in Sumerian mode (SuRu) ----------
+    # The fourth Runic script, per Helix Codex Stage 5 Section XXVII (test
+    # build) through Stage 7 Section XXXVI (empty-slot glyph added, mode
+    # confirmed as Greek-supplement not replacement) through Stage 11-12
+    # (CuRu/SuRu shorthand canonized; CuRu-leading script-mode-declaration
+    # grammar settled, superseding an earlier FuRu-leading proposal).
+    #
+    # CuRu = the glyph itself. SuRu = the semantic mode those glyphs carry
+    # here (foundational / archaeological / precision-by-discipline) — the
+    # same script-vs-mode separation as "Futhark glyphs in ontological mode".
+    #
+    # Honesty note: this is Mark's "test build" status, not a finalized
+    # 25-40 glyph catalog (that expansion was deferred to a later stage).
+    # Nine glyphs: the original 8-glyph test set plus BAD, added when the
+    # empty-slot need was identified.
+    CUNEIFORM: Dict[str, str] = {
+        'dingir': '𒀭', 'en': '𒂗', 'ki': '𒆠', 'ka': '𒅗', 'me': '𒈨',
+        'e': '𒂊', 'shu': '𒋗', 'nig': '𒁁', 'bad': '𒁕',
+    }
+
+    CUNEIFORM_SUMERIAN_MEANING: Dict[str, str] = {
+        '𒀭': 'foundational designation (DINGIR: god/divine/sky) — also the script-mode declaration leader',
+        '𒂗': 'canonical-status declaration (EN: lord/authority/canonical)',
+        '𒆠': 'residency/location anchor (KI: earth/ground/place)',
+        '𒅗': 'declaration speech-act (KA: mouth/speech/utterance)',
+        '𒈨': 'invariant principle — CASL-floor invariants (ME: divine power/ordinance)',
+        '𒂊': 'flow-through declaration (E: water/canal/flow)',
+        '𒋗': 'agent-acting designation (ŠU: hand/agent/doer)',
+        '𒁁': 'concrete-substance designation (NÍG: thing/matter/substance)',
+        '𒁕': 'intentional emptiness — the empty-slot glyph (BAD: empty/open/cleared); '
+              'two operational forms: single annotation, or Circle-pair scope',
+    }
+
+    # Script-name -> mode-name shorthand pairs (Helix Stage 11 Section LI).
+    # CuRu/SuRu is the odd one out: CuRu is glyph, SuRu is the mode it
+    # carries here — same script/mode separation FuRu/GrRu/HiRu already have,
+    # just made explicit because Cuneiform is new enough to need it spelled out.
+    SCRIPT_SHORTHAND: Dict[str, str] = {
+        'FuRu': 'Futhark Rune — Elder Futhark glyphs, ontological/identity mode',
+        'GrRu': 'Greek Rune — Greek alphabet + admathRune operators, mathematical/logical mode',
+        'HiRu': 'Hiragana Rune — Japanese hiragana glyphs, behavioral/process mode (proposed)',
+        'CuRu': 'Cuneiform Rune — the glyph itself',
+        'SuRu': 'Sumerian mode — CuRu glyphs interpreted in foundational/archaeological/precision register',
+    }
+
     TOKENS: Dict[str, Dict[str, Any]] = {
         'TB': {'symbol': 'ξ', 'block_type': 'TREE/FRUIT', 'wire_code': 0x01, 'compression': '15:1'},
         'EA': {'symbol': 'α', 'block_type': 'FLAME/EMBER', 'wire_code': 0x03, 'compression': '13:1'},
@@ -111,6 +256,31 @@ class RunicSymbolTable:
     @classmethod
     def symbol_for_domain_key(cls, key: str) -> Optional[str]:
         return cls.DOMAIN.get(key)
+
+    @classmethod
+    def greek_letter(cls, name: str) -> Optional[str]:
+        return cls.GREEK.get(name.lower())
+
+    @classmethod
+    def hiragana_char(cls, romaji: str) -> Optional[str]:
+        return cls.HIRAGANA.get(romaji.lower())
+
+    @classmethod
+    def cuneiform_glyph(cls, name: str) -> Optional[str]:
+        return cls.CUNEIFORM.get(name.lower())
+
+    @classmethod
+    def script_of(cls, glyph: str) -> Optional[str]:
+        """Which of the four scripts (FuRu/GrRu/HiRu/CuRu) a glyph belongs to."""
+        if glyph in cls.ARSTACK.values():
+            return 'FuRu'
+        if glyph in cls.GREEK.values():
+            return 'GrRu'
+        if glyph in cls.HIRAGANA.values():
+            return 'HiRu'
+        if glyph in cls.CUNEIFORM.values():
+            return 'CuRu'
+        return None
 
     @classmethod
     def token_for_value(cls, value: Any) -> Optional[str]:
@@ -212,6 +382,73 @@ class KeywordTranslator:
     def coverage(cls) -> int:
         """Total number of keyword+builtin runes catalogued."""
         return len(cls.KEYWORD_RUNES) + len(cls.BUILTIN_RUNES)
+
+
+# =============================================================================
+# MULTISCRIPT COMPOSITION (Futhark / Greek / Hiragana / Cuneiform)
+# =============================================================================
+
+class MultiscriptComposer:
+    """
+    Cross-script composition per runic-language-system sub-skill E-03
+    (UniversalRune) and the Helix Codex Stage 5-12 script-mode-declaration
+    grammar. Each of the four scripts carries one orthogonal register and
+    none may be substituted for another:
+
+        FuRu (Futhark)   -> what it IS      (structural identity)
+        GrRu (Greek)     -> how it COMPUTES (mathematical form, never
+                             redefined — only extended contextually)
+        HiRu (Hiragana)  -> how it BEHAVES  (process sequence; proposed,
+                             not yet Stage-3 finalized upstream)
+        CuRu (Cuneiform) -> what persists   (foundational/archaeological/
+                             precision substrate, in SuRu mode); Mark's
+                             test-build status, not a finalized catalog
+    """
+
+    @staticmethod
+    def universal_rune(futhark: str = '', greek: str = '', hiragana: str = '') -> str:
+        """
+        Compose a UniversalRune: ((FuRu)(GrRu)(HiRu)). Any component may be
+        omitted; omitted registers are simply absent from the composition,
+        not filled with a default.
+        """
+        parts = [p for p in (futhark, greek, hiragana) if p]
+        return '(' + ')('.join(parts) + ')' if parts else '()'
+
+    @staticmethod
+    def script_mode_declaration(target: str, curu: str = '𒀭', furu: Optional[str] = None) -> str:
+        """
+        CuRu-leading script-mode declaration (Helix Stage 12 Section LIV;
+        supersedes the earlier Stage 11 FuRu-leading proposal). Grammar:
+
+            script_mode_declaration ::= (FuRu)? CuRu+ target
+
+        `curu` defaults to 𒀭 (DINGIR) for basic Sumerian-mode declaration.
+        Pass a doubled glyph (e.g. '𒀭𒀭') for "alternative-of-the-alternative".
+        `furu` is an optional Futhark prefix that flavors *which* alternative
+        is meant (e.g. ᚱ Raidho for a Root-semantic flavor of the alternative).
+        """
+        prefix = furu or ''
+        return f"{prefix}{curu}({target})"
+
+    @staticmethod
+    def empty_slot(count: int = 1) -> str:
+        """
+        The 𒁕 (BAD) empty-slot glyph: intentional emptiness as first-class
+        Circle content, not "missing data". Repeated for multi-position
+        emptiness (Helix Stage 7 Section XXXVI).
+        """
+        return ' '.join(['𒁕'] * max(count, 1))
+
+    @staticmethod
+    def admath_circle(body: str, sumerian_mode: bool = False) -> str:
+        """
+        ᛟ○ ... ᛟ○0 (Greek mode, default) or 𒀭ᛟ○ ... 𒀭ᛟ○0 (Sumerian mode,
+        precision arithmetic — base-60, supplementing rather than replacing
+        Greek mode, per Helix Stage 7 Section XXXVI Specification 1).
+        """
+        prefix = '𒀭' if sumerian_mode else ''
+        return f"{prefix}ᛟ○ {body} {prefix}ᛟ○0"
 
 
 # =============================================================================
@@ -412,6 +649,7 @@ class PyRunicTranslator:
 
     symbols = RunicSymbolTable
     keywords = KeywordTranslator
+    multiscript = MultiscriptComposer
 
     @staticmethod
     def translate_value(value: Any) -> str:
@@ -473,6 +711,47 @@ def _run_diagnostics():
     print(f"\n-- KeywordTranslator coverage (gap 3): {KeywordTranslator.coverage()} entries --")
     print(f"  keywords: {len(KeywordTranslator.KEYWORD_RUNES)}, builtins: {len(KeywordTranslator.BUILTIN_RUNES)}")
 
+    print("\n" + "=" * 60)
+    print("The four Runic scripts (FuRu / GrRu / HiRu / CuRu)")
+    print("=" * 60)
+
+    print(f"\n-- 1. FuRu (Futhark): {len(RunicSymbolTable.ARSTACK)} runes — see ARSTACK above --")
+
+    print(f"\n-- 2. GrRu (Greek): {len(RunicSymbolTable.GREEK)} letters --")
+    for name, sym in list(RunicSymbolTable.GREEK.items())[:5]:
+        math = RunicSymbolTable.GREEK_MATH_MEANING.get(sym, '')
+        qren = RunicSymbolTable.GREEK_QREN_PAYLOAD_CLASS.get(sym, '(no QRen role)')
+        print(f"  {name:10} {sym}  math: {math}")
+        print(f"  {'':10} {' '}  QRen: {qren}")
+    print(f"  ... ({len(RunicSymbolTable.GREEK) - 5} more)")
+
+    print(f"\n-- 3. HiRu (Hiragana): {len(RunicSymbolTable.HIRAGANA)} characters (PROPOSED, not Stage-3 finalized) --")
+    for romaji, sym in list(RunicSymbolTable.HIRAGANA.items())[:5]:
+        print(f"  {romaji:10} {sym}  {RunicSymbolTable.HIRAGANA_MEANING.get(sym, '')}")
+    print(f"  ... ({len(RunicSymbolTable.HIRAGANA) - 5} more)")
+
+    print(f"\n-- 4. CuRu (Cuneiform) in SuRu mode: {len(RunicSymbolTable.CUNEIFORM)} test glyphs (Mark's test-build status) --")
+    for name, sym in RunicSymbolTable.CUNEIFORM.items():
+        print(f"  {name:10} {sym}  {RunicSymbolTable.CUNEIFORM_SUMERIAN_MEANING.get(sym, '')}")
+
+    print("\n-- Script shorthand registry --")
+    for shorthand, meaning in RunicSymbolTable.SCRIPT_SHORTHAND.items():
+        print(f"  {shorthand:6} {meaning}")
+
+    print("\n-- MultiscriptComposer: UniversalRune composition (e_03_skill.md examples) --")
+    print("  " + MultiscriptComposer.universal_rune('ᚠα', '', 'あ') + "  (primary variable flow initiator)")
+    print("  " + MultiscriptComposer.universal_rune('ᛟψ', '', 'る') + "  (execute advanced wave function computation)")
+    print("  " + MultiscriptComposer.universal_rune('ᚨδ', '', 'む') + "  (AI-driven adaptive modification)")
+
+    print("\n-- MultiscriptComposer: script-mode declaration (Helix Stage 12 Section LIV) --")
+    print("  " + MultiscriptComposer.script_mode_declaration('target_rune') + "  (basic SuRu-mode declaration)")
+    print("  " + MultiscriptComposer.script_mode_declaration('target_rune', furu='ᚱ') + "  (Root-flavored)")
+    print("  " + MultiscriptComposer.script_mode_declaration('target_rune', curu='𒀭𒀭') + "  (alternative-of-the-alternative)")
+    print("  " + MultiscriptComposer.admath_circle('computation_using_base_60_arithmetic', sumerian_mode=True))
+
+    print("\n-- MultiscriptComposer: empty-slot glyph --")
+    print("  " + MultiscriptComposer.empty_slot(3) + "  (three deliberately empty Circle positions)")
+
     print("\n-- Function ArCircle notation --")
     def example_boundary_cross(value, operation=None):
         return value
@@ -491,7 +770,10 @@ def _run_diagnostics():
           f"{len(RunicSymbolTable.CORE_TYPES)} core types + "
           f"{len(RunicSymbolTable.DOMAIN)} domain + "
           f"{len(RunicSymbolTable.ADMATH_OPERATORS)} admath ops + "
-          f"{len(RunicSymbolTable.ARSTACK)} Futhark runes + "
+          f"{len(RunicSymbolTable.ARSTACK)} FuRu + "
+          f"{len(RunicSymbolTable.GREEK)} GrRu + "
+          f"{len(RunicSymbolTable.HIRAGANA)} HiRu + "
+          f"{len(RunicSymbolTable.CUNEIFORM)} CuRu + "
           f"{KeywordTranslator.coverage()} keywords/builtins")
     print("=" * 60)
 
