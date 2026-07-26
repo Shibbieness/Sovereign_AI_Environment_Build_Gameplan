@@ -62,9 +62,15 @@ CRYSTAL = BlockType(0x0D, 'CRYSTAL', 2, 'Lattice, >=1 outgoing edge', crystal_sl
 LIGHT = BlockType(0x0E, 'LIGHT', 2, 'Index / Glossary / Map Key / Routing Table',
                    monolith_instances='MASTER_INDEX.md, ROUTING_DESCRIPTION.md, BLOCK_TYPE_CATALOGUE.md')
 
+# Escape hatch — confirmed live in both qren-coder's BlockType(IntEnum) and
+# qren-type-system's block-type-classifier BLOCK_TYPES registry, though not
+# named in the ml-filesystem-monolith sub-skill C taxonomy table itself.
+CUSTOM = BlockType(0xFF, 'CUSTOM', 2, 'User-defined, no canonical type applies',
+                    monolith_instances='Fallback when no other type fits; declared explicitly in metadata')
+
 ALL_TYPES: List[BlockType] = [
     TREE, ICE, FLAME, LIGHTNING, FRACTAL, GEOMETRIC, AMORPHOUS,
-    NESTED, RUNIC, MYCELIUM, BONE, VOID, CRYSTAL, LIGHT,
+    NESTED, RUNIC, MYCELIUM, BONE, VOID, CRYSTAL, LIGHT, CUSTOM,
 ]
 
 BY_WIRE_CODE: Dict[int, BlockType] = {bt.wire_code: bt for bt in ALL_TYPES}
