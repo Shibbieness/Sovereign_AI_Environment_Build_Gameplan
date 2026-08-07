@@ -67,9 +67,9 @@ status table below is the real one, and it is mostly empty on purpose.
 |---|---|---|
 | Vanilla Core | — | The kernel; v0.2.0, 11 tests |
 | QRen Coder | **G3** | Ported. 15 format tests + 13 adapter tests |
-| ML Filesystem (`sovereign_py/`) | **G3 partial** | Ported, 13 adapter tests. 5 of 8 capabilities declared; 3 blocked upstream — see below |
+| ML Filesystem (`sovereign_py/`) | **G3** | Ported. 19 adapter tests, 9/9 capabilities working, no known gaps. Master DB routes two model Bases to two stores (27 tables) |
 | Eidoa | G0 | Licensed. Code exists, untested here |
-| QRen (vendored, `qren/`) | G1 | Fuller than the standalone repo: 15/15 tests, plus block types, magic circles, Crystal Slime, phase-2 types. **Not the version that was ported** |
+| QRen (vendored, `qren/`) | G1 | 15/15 tests; adds 7 Tier-2 block types, Crystal Slime, magic circle, classifier. Overlay plan in QREN-CONSOLIDATION.md |
 | VI Builder (`vi_builder/`) | G0 | 7 modules, untested here |
 | Helix / MenuCode (`helix/`) | G0 | 3 modules, untested here |
 | Lattice (`lattice/`) | G0 | WEAVE/BLOOM validators, untested here |
@@ -83,41 +83,41 @@ one tenth of an OS — it is zero of an OS with ten candidates.
 
 ## ML Filesystem: what the port found
 
-Three integration defects, all fixed: a SQLAlchemy reserved-name collision
-that broke `models_v1` on import, a missing bridge alias that broke
-`part2_agent_system`, and a stale database singleton in the adapter's own
-bootstrap. With the first two fixed, the documented 17-table schema builds
-and all 20 bridge aliases resolve.
+Five defects found and fixed: a SQLAlchemy reserved-name collision that
+broke `models_v1` on import, a missing bridge alias that broke
+`part2_agent_system`, a stale database singleton, a missing root-directory
+record that made `list_directory('/')` fail on every fresh install, and two
+capabilities returning ORM objects bound to already-closed sessions.
 
-One defect is **not** fixed, on purpose. `fs_engine/filesystem.py` queries
-`File.is_directory` and `File.parent_id`; the `models` alias resolves to
-`core.database`, whose `File` has neither. `core/models_v1.py` does have
-them. The two model generations register on separate declarative Bases, so
-no alias change reconciles them — deciding which is canonical changes the
-database schema, and that is an owner's call.
+The blocking defect — two divergent `File` models — is resolved by
+**routing, not merging**. Six table names collide between the two
+declarative Bases with different columns on each side, so one database was
+never possible. `core/master_db.py` owns one engine per store:
 
-Consequence: `fs-write`, `fs-read`, `fs-list` are implemented but not
-declared in the manifest. They raise an explanation rather than an opaque
-ORM error. This is why the gate reads **G3 partial** rather than G3: the
-filesystem's write path does not work, and a status table that hid that
-would be worthless.
+- **hierarchy** (`models_v1`): the filesystem tree — `is_directory`,
+  `parent_id`, `storage_path`. 10 tables.
+- **enhanced** (`core.database` + `enhanced_models`): chains, training
+  blocks, agents, embeddings, VM/IDE/API. 17 tables.
+
+Neither is canonical. Different stores for different jobs.
+
+**Open limitation:** both stores have a `files` table and they are not
+synchronized. Nothing crosses that boundary today, but any feature joining a
+chain to a file on disk must reconcile identity across stores explicitly.
+That is the next real design task in this subsystem.
 
 ## The two QRen versions
 
-`qren/` on this branch is a **fuller** QRen than the standalone
-`QRen-Code-Build-1` repository that was ported: same 15/15-passing QRCF
-core, plus a whole outer layer (`block_types.py`, `magic_circle.py`,
-`crystal_slime.py`, `classifier.py`, `wire_format.py`, `tokens.py`,
-`cli.py`) and two extra format modules (`qrcf_circle_rules.py`,
-`qrcf_types_phase2.py`) — roughly 2,900 additional lines. Its own header
-marks the QRCF core "PHASE 1 FROZEN … canonical."
+Analysed in full in `QREN-CONSOLIDATION.md`. Summary: the format cores are
+functionally identical (both 15/15; the ~780 differing lines are docstrings
+and import style). The vendored copy adds ~2,900 lines of semantic layer —
+7 additional Tier-2 block types on free codes, Crystal Slime lifecycle,
+magic circle, classifier, Runic tokens.
 
-The port targeted the standalone repo, which means **the thinner copy is the
-one wearing the flavor.** This needs resolving before more work lands on
-either: two divergent copies of the same system is the condition the whole
-vanilla/flavor split exists to prevent. Recommended: make the vendored
-version canonical, move it into the QRen repository, and re-point the
-adapter at it.
+The two are **wire-compatible in one direction**: Tier 1 codes are identical,
+so standalone archives decode under the vendored taxonomy, but not the
+reverse. The overlay is therefore additive and does not touch the frozen
+core. Plan and failure modes are in `QREN-CONSOLIDATION.md`.
 
 ## Why ML Filesystem was next, specifically
 
@@ -190,7 +190,43 @@ loaded against real code, the port is tested, and the result is committed.
 That yields genuinely different results per subsystem, because the code
 differs, rather than uniformly enthusiastic prose about all of them.
 
+## The Spire as a learning structure
+
+The gates were built to certify subsystem readiness. They double as a
+learning path, and that is worth making explicit rather than leaving
+implicit.
+
+A gate ladder is already the shape a curriculum wants: ordered, each rung
+verifiable, no rung passable by assertion. Someone learning this system by
+taking a subsystem from G0 to G3 has to make its tests pass, write a
+manifest that does not overpromise, and produce an adapter with its own
+tests. That is not a tutorial *about* the system — it is the same work a
+maintainer does, at a smaller radius.
+
+Two properties make this usable by someone who is not already an expert:
+
+- **The gates are machine-checked.** `vanilla-core check` and a test suite
+  say pass or fail. A learner does not need a mentor to know where they are.
+- **Failure is informative here.** Every port so far surfaced real defects —
+  a reserved attribute name, a wrong module alias, a session-lifetime bug.
+  Those are the actual skills, and they cannot be learned from prose.
+
+What is **not** built: any of it. There is no lesson content, no progress
+tracking, no ordering hints for a newcomer, no way to attempt a gate against
+a scratch copy without touching the real repo. The SPIRE skill describes
+machinery for exactly this (tiered re-entry, capability floor, held-out
+splits); wiring that to these gates is a real project, and it should not
+start until more subsystems are actually at G3 — a curriculum built from two
+examples teaches those two examples.
+
+Recorded as direction, not as work in progress.
+
 ## Immediate next step
 
-Port ML Filesystem to G3. Then, with two real flavors and a real dependency
-between them, design the composite runner against what they actually need.
+Two flavors are now at G3. The next unit of work is the QRen overlay
+(`QREN-CONSOLIDATION.md`), because leaving two divergent copies of one
+subsystem is the exact condition the vanilla/flavor split exists to prevent,
+and it gets worse the longer both are edited.
+
+After that: the composite runner, designed against the QRen → ML Filesystem
+dependency now that both ends actually run.
