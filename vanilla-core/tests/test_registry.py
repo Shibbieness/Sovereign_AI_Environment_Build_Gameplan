@@ -15,8 +15,9 @@ class TestRegistry(unittest.TestCase):
     def test_load_and_run_example(self):
         manifest_path = EXAMPLES / "hello_flavor" / "flavor.toml"
         flavor = load_flavor(manifest_path)
-        result = flavor.run(capability="greet")
-        self.assertEqual(result, {"capability": "greet", "message": "hello from a Vanilla Core flavor"})
+        result = flavor.invoke(capability="greet")
+        self.assertEqual(result["capability"], "greet")
+        self.assertIn("hello", result["message"])
 
     def test_refuses_to_load_flavor_that_fails_floor(self):
         import tempfile

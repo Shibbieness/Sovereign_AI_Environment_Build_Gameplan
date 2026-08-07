@@ -8,7 +8,7 @@ functionality declared by a `flavor.toml` manifest and one entrypoint
 function. It's the shared machine, not any one flavor's logic.
 
 ```
-flavor.toml  →  FlavorManifest.load()  →  check_floor()  →  load_flavor()  →  flavor.run(**kwargs)
+flavor.toml  →  FlavorManifest.load()  →  check_floor()  →  load_flavor()  →  flavor.invoke(capability, params)
 ```
 
 ## The manifest contract (v1)
@@ -24,9 +24,23 @@ capabilities = ["thing-it-can-do"]
 ```
 
 `vanilla_core.registry.load_flavor` adds the manifest's directory to
-`sys.path`, imports `module`, and returns `callable` unexecuted — the caller
-decides when and how to invoke it (`flavor.run(capability=...)` by
-convention; the exact call signature is the flavor's own business).
+`sys.path`, imports `module`, and returns `callable` unexecuted. The caller
+decides when to run it, via `LoadedFlavor.invoke(capability, params)`:
+
+```python
+def run(capability: str | None = None, params: dict | None = None) -> dict:
+    ...
+```
+
+`capability` names which declared capability to exercise; `params` is a
+plain dict of arguments. `invoke()` refuses a capability the manifest does
+not declare, so a flavor's manifest is an honest description of its surface
+rather than documentation that drifts.
+
+The v0.1 contract was `run(capability)` with no way to pass data. Porting
+the first real flavor (QRen Coder) immediately proved that insufficient —
+which is the case ARCHITECTURE.md said should drive a core change, rather
+than special-casing one flavor. `params` was added generically.
 
 This is intentionally the entire contract. It does not currently version
 itself (there is only v1); when it needs to change in a breaking way, add a
@@ -41,9 +55,11 @@ full stop:
 
 - `name`, `version`, and a recognized `license` are present.
 - `entrypoint` is a resolvable `module:callable` string.
-- No disallowed marker (`anthropic.com`, a `claude.ai/code` session link, a
-  `Co-Authored-By: Claude` trailer) appears anywhere in the manifest's own
-  fields.
+- No disallowed marker appears in the manifest's own fields: a vendor
+  contact address, a private chat-session link, a shared-conversation link,
+  or a vendor co-author trailer. These are matched specifically rather than
+  by vendor name, so a flavor that legitimately integrates a vendor API can
+  still declare that (e.g. `capabilities = ["anthropic-api-routing"]`).
 
 `load_flavor()` enforces this by default (`enforce_floor=True`) and raises
 `FloorViolationError` rather than importing untrusted/incomplete code. This
@@ -80,10 +96,18 @@ contract this small, not a separate feature to build.
 
 ## Composite / "Mad Scientist" runs
 
-Nothing here currently orchestrates *multiple* flavors composed together —
-v0.1 runs one flavor at a time by design, so the composition contract stays
-minimal while real ports are still happening. A composite runner (loading
-several flavors and combining their `run()` outputs, per repo, per stack) is
-the natural v0.2 once there are at least two real (non-example) flavors
-ported in to design the composition contract against real usage rather than
-speculatively.
+Nothing here orchestrates *multiple* flavors composed together yet. v0.2
+runs one flavor at a time by design, so the composition contract stays
+minimal while real ports are still happening.
+
+One real flavor (QRen Coder) is in. A composite runner — loading several
+flavors and routing between them — is v0.3, gated on a **second** real
+flavor existing. The reason for the gate is concrete: designing composition
+against a single example produces a contract shaped like that one example.
+The first port already demonstrated this in miniature, forcing `params`
+into the contract that speculation had missed.
+
+The candidate second flavor is ML Filesystem, because it is the piece that
+would consume QRen output rather than merely sitting beside it — a real
+data dependency between two flavors is what a composition contract has to
+survive.

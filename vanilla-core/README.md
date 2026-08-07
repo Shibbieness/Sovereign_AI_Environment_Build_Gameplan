@@ -40,7 +40,7 @@ capabilities = ["thing-it-can-do"]
 ```
 
 ...and a Python module (`plugin.py` above) exposing the callable named in
-`entrypoint`. Vanilla Core adds the flavor's directory to `sys.path`,
+`entrypoint`, with the signature `run(capability, params)`. Vanilla Core adds the flavor's directory to `sys.path`,
 imports it, and hands back the callable — nothing more. See
 `ARCHITECTURE.md` for the full contract, what belongs in core vs. what
 belongs in a flavor, and how to port a flavor in or out.
@@ -75,8 +75,15 @@ provenance note on the license text itself.
 
 ## Status
 
-v0.1.0 — the engine runs and is tested end to end against one example
-flavor. No real stack repo has been ported in yet; see `STANDARDS.md` for
-what's enforced today versus planned, and `ARCHITECTURE.md` for why
-composite/multi-flavor "Mad Scientist" runs are intentionally deferred to
-v0.2, once there's real usage to design that contract against.
+v0.2.0 — the engine runs, and the first real flavor is ported: **QRen
+Coder**, driven end to end through Vanilla Core (encode, decode, verify,
+block-types, self-test) with 13 adapter tests alongside QRen's own 15.
+
+That port paid for itself immediately: it forced the `params` half of the
+contract into existence, and it surfaced a real integrity bug — an adapter
+that checked only for raised exceptions reported corrupted archives as
+valid, because QRen also signals corruption via a returned `valid=False`.
+
+See `STANDARDS.md` for what's enforced today versus planned. Composite
+multi-flavor runs remain deferred until a second real flavor exists to
+design that contract against.

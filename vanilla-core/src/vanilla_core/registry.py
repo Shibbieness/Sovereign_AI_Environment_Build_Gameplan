@@ -16,10 +16,29 @@ class FloorViolationError(Exception):
         super().__init__("; ".join(f"{v.check}: {v.detail}" for v in violations))
 
 
+class UnknownCapabilityError(Exception):
+    """Asked for a capability the flavor does not declare."""
+
+
 @dataclass
 class LoadedFlavor:
     manifest: FlavorManifest
     run: Callable[..., Any]
+
+    def invoke(self, capability: str | None = None, params: dict | None = None) -> Any:
+        """Call the flavor's entrypoint through the standard contract.
+
+        The entrypoint receives `capability` (which of its declared
+        capabilities to exercise) and `params` (a plain dict of arguments).
+        Keeping the shape this narrow is what lets a flavor be lifted out of
+        Vanilla Core and driven by something else — see ARCHITECTURE.md.
+        """
+        declared = self.manifest.capabilities
+        if capability is not None and declared and capability not in declared:
+            raise UnknownCapabilityError(
+                f"{self.manifest.name} declares {sorted(declared)}, not {capability!r}"
+            )
+        return self.run(capability=capability, params=params or {})
 
 
 def discover(root: Path) -> list[Path]:
