@@ -1,0 +1,6 @@
+[flavor]
+name = "hello-flavor"
+version = "0.1.0"
+license = "AGPL-3.0-or-later"
+entrypoint = "plugin:run"
+capabilities = ["greet"]

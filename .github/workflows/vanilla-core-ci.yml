@@ -1,0 +1,34 @@
+name: vanilla-core CI
+
+on:
+  push:
+    paths:
+      - "vanilla-core/**"
+      - ".github/workflows/vanilla-core-ci.yml"
+  pull_request:
+    paths:
+      - "vanilla-core/**"
+      - ".github/workflows/vanilla-core-ci.yml"
+
+defaults:
+  run:
+    working-directory: vanilla-core
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install package
+        run: pip install -e .
+      - name: Run tests
+        run: python -m unittest discover -s tests -v
+      - name: Run floor check on every example flavor
+        run: |
+          set -e
+          for f in $(find examples -name flavor.toml); do
+            vanilla-core check "$f"
+          done

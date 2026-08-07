@@ -1,0 +1,17 @@
+[project]
+name = "vanilla-core"
+version = "0.1.0"
+description = "Shared, standardized flavor-plugin engine and floor check for the M MAOU stack."
+requires-python = ">=3.11"
+license = "AGPL-3.0-or-later"
+dependencies = []
+
+[project.scripts]
+vanilla-core = "vanilla_core.cli:main"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
