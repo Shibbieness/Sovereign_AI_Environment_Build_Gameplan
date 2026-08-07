@@ -62,6 +62,12 @@ _ALIASES = [
 
     # --- legacy flat "models" module ---
     ("models", "core.database"),
+
+    # --- legacy flat "extended" modules ---
+    # part2_agent_system does `import part1_foundation` with no package
+    # prefix, so the bare name has to resolve or part2 fails to import.
+    ("part1_foundation", "extended.part1_foundation"),
+    ("part2_agent_system", "extended.part2_agent_system"),
 ]
 
 

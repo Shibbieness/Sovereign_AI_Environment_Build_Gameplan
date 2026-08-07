@@ -1,0 +1,28 @@
+name: ml-filesystem flavor CI
+
+on:
+  push:
+    paths: ["sovereign_py/**", ".github/workflows/ml-filesystem-ci.yml"]
+  pull_request:
+    paths: ["sovereign_py/**", ".github/workflows/ml-filesystem-ci.yml"]
+
+defaults:
+  run:
+    working-directory: sovereign_py
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install flavor dependencies
+        run: pip install -r requirements-flavor.txt
+      - name: Install Vanilla Core
+        run: pip install -e ../vanilla-core
+      - name: Floor check
+        run: vanilla-core check flavor.toml
+      - name: Flavor adapter suite
+        run: python -m unittest test_flavor -v

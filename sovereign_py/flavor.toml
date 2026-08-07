@@ -1,0 +1,16 @@
+[flavor]
+name = "ml-filesystem"
+version = "1.8.0"
+license = "AGPL-3.0-or-later"
+entrypoint = "vanilla_flavor:run"
+# Only capabilities that actually work are declared. fs-write, fs-read and
+# fs-list are implemented but blocked by an upstream defect (two divergent
+# File models); see KNOWN_GAPS in vanilla_flavor.py. Declaring them would
+# make this manifest a promise the code cannot keep.
+capabilities = [
+  "status",
+  "self-test",
+  "fs-search",
+  "chains",
+  "training-blocks",
+]
