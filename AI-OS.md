@@ -67,9 +67,13 @@ status table below is the real one, and it is mostly empty on purpose.
 |---|---|---|
 | Vanilla Core | — | The kernel; v0.2.0, 11 tests |
 | QRen Coder | **G3** | Ported. 15 format tests + 13 adapter tests |
-| ML Filesystem | G0 | Licensed. Next port — see below |
+| ML Filesystem (`sovereign_py/`) | **G3 partial** | Ported, 13 adapter tests. 5 of 8 capabilities declared; 3 blocked upstream — see below |
 | Eidoa | G0 | Licensed. Code exists, untested here |
-| Sovereign AI gameplan | G0 | Docs + vendored code, not yet a flavor |
+| QRen (vendored, `qren/`) | G1 | Fuller than the standalone repo: 15/15 tests, plus block types, magic circles, Crystal Slime, phase-2 types. **Not the version that was ported** |
+| VI Builder (`vi_builder/`) | G0 | 7 modules, untested here |
+| Helix / MenuCode (`helix/`) | G0 | 3 modules, untested here |
+| Lattice (`lattice/`) | G0 | WEAVE/BLOOM validators, untested here |
+| Gilwright (`gilwright/`) | G0 | Ships its own SQLite ledger and a vanilla-weave product |
 | ASSAY, CRUCIBLE | — | Described in skills; no repo in scope yet |
 | CALS / CASL / Cal's Castle | — | Framework, not yet code in scope |
 | Runic, Helix, Lattice, SPIRE, ACI, Book of Cities | — | Same |
@@ -77,7 +81,45 @@ status table below is the real one, and it is mostly empty on purpose.
 Everything below G3 is a plan, not a component. Ten subsystems at G0 is not
 one tenth of an OS — it is zero of an OS with ten candidates.
 
-## Why ML Filesystem is next, specifically
+## ML Filesystem: what the port found
+
+Three integration defects, all fixed: a SQLAlchemy reserved-name collision
+that broke `models_v1` on import, a missing bridge alias that broke
+`part2_agent_system`, and a stale database singleton in the adapter's own
+bootstrap. With the first two fixed, the documented 17-table schema builds
+and all 20 bridge aliases resolve.
+
+One defect is **not** fixed, on purpose. `fs_engine/filesystem.py` queries
+`File.is_directory` and `File.parent_id`; the `models` alias resolves to
+`core.database`, whose `File` has neither. `core/models_v1.py` does have
+them. The two model generations register on separate declarative Bases, so
+no alias change reconciles them — deciding which is canonical changes the
+database schema, and that is an owner's call.
+
+Consequence: `fs-write`, `fs-read`, `fs-list` are implemented but not
+declared in the manifest. They raise an explanation rather than an opaque
+ORM error. This is why the gate reads **G3 partial** rather than G3: the
+filesystem's write path does not work, and a status table that hid that
+would be worthless.
+
+## The two QRen versions
+
+`qren/` on this branch is a **fuller** QRen than the standalone
+`QRen-Code-Build-1` repository that was ported: same 15/15-passing QRCF
+core, plus a whole outer layer (`block_types.py`, `magic_circle.py`,
+`crystal_slime.py`, `classifier.py`, `wire_format.py`, `tokens.py`,
+`cli.py`) and two extra format modules (`qrcf_circle_rules.py`,
+`qrcf_types_phase2.py`) — roughly 2,900 additional lines. Its own header
+marks the QRCF core "PHASE 1 FROZEN … canonical."
+
+The port targeted the standalone repo, which means **the thinner copy is the
+one wearing the flavor.** This needs resolving before more work lands on
+either: two divergent copies of the same system is the condition the whole
+vanilla/flavor split exists to prevent. Recommended: make the vendored
+version canonical, move it into the QRen repository, and re-point the
+adapter at it.
+
+## Why ML Filesystem was next, specifically
 
 Not because it is the most interesting — because it is the only candidate
 that would **consume QRen's output** rather than sit beside it. A composition
