@@ -1,0 +1,72 @@
+# ML Filesystem v1.8 - Complete Dependencies
+
+# Core Web Framework
+flask==3.0.0
+flask-cors==4.0.0
+flask-socketio==5.3.5
+python-socketio==5.10.0
+
+# Database
+sqlalchemy==2.0.23
+alembic==1.13.1
+
+# ML - Local Models (Offline Capability)
+sentence-transformers==2.2.2
+transformers==4.36.0
+torch==2.1.2
+accelerate==0.25.0
+
+# ML - Vector Database
+chromadb==0.4.22
+
+# ML - Additional Tools
+scikit-learn==1.3.2
+numpy==1.26.2
+
+# ML - Optional API Integration
+anthropic==0.8.1
+
+# File Processing
+python-magic==0.4.27
+PyPDF2==3.0.1
+Pillow==10.1.0
+markdown==3.5.1
+
+# Utilities
+python-dotenv==1.0.0
+werkzeug==3.0.1
+watchdog==3.0.0
+pyyaml==6.0.1
+
+# External API (for other apps to connect)
+fastapi==0.108.0
+uvicorn==0.25.0
+pydantic==2.5.3
+
+# System Integration
+pystray==0.19.5  # System tray
+keyboard==0.13.5  # Global hotkeys
+psutil==5.9.6  # System monitoring
+
+# Plugin System
+pluggy==1.3.0
+importlib-metadata==7.0.0
+
+# Workflow Automation
+apscheduler==3.10.4
+
+# Development
+pytest==7.4.3
+black==23.12.1
+
+# API Management
+requests==2.31.0
+openai==1.6.1  # Optional: for OpenAI API support
+
+# Coding IDE
+pygments==2.17.2  # Syntax highlighting
+jedi==0.19.1  # Python autocomplete
+
+# VM Management
+docker==7.0.0  # Docker SDK
+
