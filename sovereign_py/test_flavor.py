@@ -57,12 +57,14 @@ class TestContract(FlavorTestCase):
 
 
 class TestStatus(FlavorTestCase):
-    def test_reports_full_schema_and_bridge(self):
+    def test_reports_both_stores_and_bridge(self):
         report = self.call("status")
         self.assertTrue(report["ok"], report.get("errors"))
-        self.assertEqual(report["table_count"], 17)
         self.assertEqual(report["bridge_unresolved"], [])
         self.assertGreaterEqual(report["bridge_aliases"], 20)
+        self.assertEqual(report["stores"]["enhanced"]["table_count"], 17)
+        self.assertEqual(report["stores"]["hierarchy"]["table_count"], 10)
+        self.assertEqual(report["table_count"], 27)
 
     def test_reports_optional_subsystems_without_raising(self):
         report = self.call("status")
@@ -83,7 +85,8 @@ class TestCapabilities(FlavorTestCase):
     def test_self_test_passes_end_to_end(self):
         result = self.call("self-test")
         self.assertTrue(result["ok"], result["steps"])
-        self.assertEqual(result["table_count"], 17)
+        self.assertEqual(result["table_count"], 27)
+        self.assertEqual(result["known_gaps"], [])
         self.assertTrue(all(step["ok"] for step in result["steps"]))
 
     def test_training_blocks_are_seeded_and_serializable(self):
@@ -105,20 +108,67 @@ class TestCapabilities(FlavorTestCase):
         self.assertTrue(result["ok"])
         self.assertEqual(result["count"], 0)
 
+    def test_filesystem_round_trip(self):
+        """Write, read back, list, and find a file — the path that was
+        blocked before the Master DB split routed it to the hierarchy store."""
+        body = "master db routing works\nline two\n"
+        written = self.call("fs-write", path="/rt.txt", content=body)
+        self.assertTrue(written["ok"])
+        self.assertIsInstance(written["file_id"], int)
+        self.assertFalse(written["is_directory"])
+
+        self.assertEqual(self.call("fs-read", path="/rt.txt")["content"], body)
+
+        listing = self.call("fs-list", path="/")
+        self.assertEqual(listing["count"], 1)
+        self.assertEqual(listing["entries"][0]["name"], "rt.txt")
+
+        found = self.call("fs-search", query="routing works")
+        self.assertEqual(found["count"], 1)
+        self.assertEqual(found["results"][0]["path"], "/rt.txt")
+
+    def test_listing_a_non_directory_is_reported_not_raised_raw(self):
+        with self.assertRaises(FlavorError):
+            self.call("fs-list", path="/not-a-real-dir")
+
     def test_search_requires_query(self):
         with self.assertRaises(FlavorError):
             self.call("fs-search")
 
 
-class TestKnownGaps(FlavorTestCase):
-    def test_blocked_capabilities_explain_themselves(self):
-        """A blocked capability must say why, not surface a raw ORM error."""
-        for gap in KNOWN_GAPS:
-            with self.assertRaises(FlavorError) as ctx:
-                self.call(gap, path="/x.txt", content="y")
-            message = str(ctx.exception)
-            self.assertIn("upstream", message.lower(), gap)
-            self.assertIn("is_directory", message, gap)
+class TestMasterDB(FlavorTestCase):
+    """The two declarative Bases are routed to separate stores rather than
+    merged, because six of their table names collide with different columns."""
+
+    def test_stores_capability_reports_routing(self):
+        result = self.call("stores")
+        self.assertTrue(result["ok"])
+        self.assertIn("hierarchy", result["routing"])
+        self.assertIn("enhanced", result["routing"])
+
+    def test_stores_are_separate_files(self):
+        stores = self.call("stores")["stores"]
+        self.assertNotEqual(stores["hierarchy"]["path"], stores["enhanced"]["path"])
+        self.assertTrue(stores["hierarchy"]["exists"])
+        self.assertTrue(stores["enhanced"]["exists"])
+
+    def test_colliding_table_names_exist_in_both_stores(self):
+        """Regression for why they cannot share one database: these table
+        names are defined by both Bases with different columns."""
+        stores = self.call("stores")["stores"]
+        for name in ("users", "files", "ml_agents", "tags", "activity_logs"):
+            self.assertIn(name, stores["hierarchy"]["tables"], name)
+            self.assertIn(name, stores["enhanced"]["tables"], name)
+
+    def test_hierarchy_file_model_has_tree_columns(self):
+        """fs_engine/filesystem.py queries these; core.database.File lacks them."""
+        written = self.call("fs-write", path="/tree.txt", content="x")
+        self.assertIn("parent_id", written)
+        self.assertIn("is_directory", written)
+
+    def test_no_known_gaps_remain(self):
+        self.assertEqual(KNOWN_GAPS, {})
+
 
 
 if __name__ == "__main__":
