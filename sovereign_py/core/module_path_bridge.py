@@ -61,7 +61,12 @@ _ALIASES = [
     ("filesystem.filechain", "fs_engine.filechain"),
 
     # --- legacy flat "models" module ---
-    ("models", "core.database"),
+    # Points at models_v1, NOT core.database. The v1-era consumers of this
+    # alias (fs_engine/filesystem.py and the two GHOST_BONE entrypoints)
+    # query File.is_directory and File.parent_id, which only models_v1
+    # defines. core.database's File is the flat v1.8 model and belongs to the
+    # `enhanced` store; see core/master_db.py for how the two are routed.
+    ("models", "core.models_v1"),
 
     # --- legacy flat "extended" modules ---
     # part2_agent_system does `import part1_foundation` with no package
