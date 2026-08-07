@@ -4,6 +4,22 @@ All notable changes to this project are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/); versioning follows
 [SemVer](https://semver.org/) once there's a public consumer to break.
 
+## [0.2.0] - 2026-08-07
+
+### Added
+- `LoadedFlavor.invoke(capability, params)` — the standard call path, which
+  validates the requested capability against the manifest's declared list and
+  raises `UnknownCapabilityError` rather than dispatching blindly.
+- `vanilla-core run --param KEY=VALUE` (repeatable, JSON-parsed when
+  possible) so a flavor can be driven with real arguments from the CLI.
+- First real flavor ported: QRen Coder (QRCF container format) via an
+  adapter in its own repository. It does not import `vanilla_core`.
+
+### Changed
+- Flavor entrypoint signature is now `run(capability, params)`. The v0.1
+  shape carried no data, which the first real port proved insufficient.
+- `vanilla-core run` prints JSON rather than a Python repr.
+
 ## [0.1.0] - 2026-08-07
 
 ### Added
