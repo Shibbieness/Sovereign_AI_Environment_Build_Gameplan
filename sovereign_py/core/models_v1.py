@@ -171,8 +171,12 @@ class FileChain(Base):
     # ML agents assigned to this chain
     ml_agents = relationship('MLAgent', back_populates='file_chain')
     
-    # Chain metadata
-    metadata = Column(JSON, default={})
+    # Chain metadata.
+    # NOTE: the Python attribute cannot be named `metadata` — SQLAlchemy's
+    # declarative API reserves that name on mapped classes, and using it
+    # raises InvalidRequestError at import time. The underlying column is
+    # still called "metadata" so the database schema is unchanged.
+    chain_metadata = Column("metadata", JSON, default={})
     is_marked_for_learning = Column(Boolean, default=False)
     
     def to_dict(self):
@@ -186,7 +190,7 @@ class FileChain(Base):
             'owner_id': self.owner_id,
             'files': [f.to_dict() for f in self.files],
             'ml_agents': [agent.id for agent in self.ml_agents],
-            'metadata': self.metadata,
+            'metadata': self.chain_metadata,
             'is_marked_for_learning': self.is_marked_for_learning
         }
 

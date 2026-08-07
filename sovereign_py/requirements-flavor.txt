@@ -1,0 +1,16 @@
+# Minimum dependencies for the Vanilla Core flavor adapter (vanilla_flavor.py).
+# Deliberately smaller than entry/requirements_complete.txt: the heavy ML
+# stack (chromadb, sentence-transformers, scikit-learn, torch) is optional and
+# degrades gracefully — `vanilla-core run flavor.toml --capability status`
+# reports which optional subsystems resolved.
+flask
+flask-cors
+flask-socketio
+sqlalchemy
+python-dotenv
+markdown
+PyPDF2
+python-magic
+watchdog
+numpy
+docker
