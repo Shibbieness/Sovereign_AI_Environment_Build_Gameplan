@@ -1,0 +1,944 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ML Filesystem</title>
+    
+    <!-- CSS Libraries -->
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/monaco-editor@0.44.0/min/vs/editor/editor.main.css" rel="stylesheet">
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #0f172a;
+            color: #e2e8f0;
+            overflow: hidden;
+        }
+        
+        .app-container {
+            display: flex;
+            height: 100vh;
+        }
+        
+        /* Sidebar */
+        .sidebar {
+            width: 250px;
+            background: #1e293b;
+            border-right: 1px solid #334155;
+            display: flex;
+            flex-direction: column;
+            transition: transform 0.3s;
+        }
+        
+        .sidebar-header {
+            padding: 1.5rem;
+            border-bottom: 1px solid #334155;
+        }
+        
+        .sidebar-nav {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1rem;
+        }
+        
+        .nav-item {
+            padding: 0.75rem 1rem;
+            margin-bottom: 0.5rem;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+        
+        .nav-item:hover {
+            background: #334155;
+        }
+        
+        .nav-item.active {
+            background: #3b82f6;
+            color: white;
+        }
+        
+        /* Main Content */
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        
+        /* Toolbar */
+        .toolbar {
+            background: #1e293b;
+            border-bottom: 1px solid #334155;
+            padding: 1rem 1.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+        }
+        
+        .breadcrumb {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.875rem;
+        }
+        
+        .breadcrumb-item {
+            cursor: pointer;
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.25rem;
+            transition: background 0.2s;
+        }
+        
+        .breadcrumb-item:hover {
+            background: #334155;
+        }
+        
+        /* Content Area */
+        .content-area {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1.5rem;
+        }
+        
+        /* File Grid */
+        .file-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 1rem;
+        }
+        
+        .file-item {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 0.5rem;
+            padding: 1rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: center;
+        }
+        
+        .file-item:hover {
+            background: #334155;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        }
+        
+        .file-item.selected {
+            border-color: #3b82f6;
+            background: #1e40af;
+        }
+        
+        .file-icon {
+            font-size: 3rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .file-name {
+            font-size: 0.875rem;
+            word-break: break-word;
+            margin-top: 0.5rem;
+        }
+        
+        /* File List View */
+        .file-list {
+            background: #1e293b;
+            border-radius: 0.5rem;
+            overflow: hidden;
+        }
+        
+        .file-list-item {
+            display: flex;
+            align-items: center;
+            padding: 0.75rem 1rem;
+            border-bottom: 1px solid #334155;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        
+        .file-list-item:hover {
+            background: #334155;
+        }
+        
+        .file-list-item.selected {
+            background: #1e40af;
+        }
+        
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .modal.active {
+            display: flex;
+        }
+        
+        .modal-content {
+            background: #1e293b;
+            border-radius: 0.75rem;
+            max-width: 90%;
+            max-height: 90%;
+            overflow: auto;
+            padding: 2rem;
+            border: 1px solid #334155;
+        }
+        
+        /* Editor */
+        .editor-container {
+            height: calc(100vh - 250px);
+            border: 1px solid #334155;
+            border-radius: 0.5rem;
+            overflow: hidden;
+        }
+        
+        /* Button Styles */
+        .btn {
+            padding: 0.5rem 1rem;
+            border-radius: 0.375rem;
+            border: none;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .btn-primary {
+            background: #3b82f6;
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            background: #2563eb;
+        }
+        
+        .btn-secondary {
+            background: #64748b;
+            color: white;
+        }
+        
+        .btn-secondary:hover {
+            background: #475569;
+        }
+        
+        .btn-danger {
+            background: #ef4444;
+            color: white;
+        }
+        
+        .btn-danger:hover {
+            background: #dc2626;
+        }
+        
+        .btn-success {
+            background: #10b981;
+            color: white;
+        }
+        
+        .btn-success:hover {
+            background: #059669;
+        }
+        
+        /* Input Styles */
+        .input {
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 0.375rem;
+            padding: 0.5rem 1rem;
+            color: #e2e8f0;
+            width: 100%;
+        }
+        
+        .input:focus {
+            outline: none;
+            border-color: #3b82f6;
+        }
+        
+        /* Tags */
+        .tag {
+            display: inline-flex;
+            align-items: center;
+            padding: 0.25rem 0.75rem;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            gap: 0.25rem;
+        }
+        
+        /* Loading Spinner */
+        .spinner {
+            border: 3px solid rgba(255, 255, 255, 0.1);
+            border-left-color: #3b82f6;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        /* ML Agent Card */
+        .agent-card {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 0.75rem;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+            transition: all 0.2s;
+        }
+        
+        .agent-card:hover {
+            border-color: #3b82f6;
+            transform: translateY(-2px);
+        }
+        
+        /* Profile */
+        .profile-header {
+            display: flex;
+            align-items: center;
+            gap: 2rem;
+            padding: 2rem;
+            background: #1e293b;
+            border-radius: 0.75rem;
+            margin-bottom: 2rem;
+        }
+        
+        .avatar {
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 3rem;
+            color: white;
+        }
+        
+        /* Context Menu */
+        .context-menu {
+            position: fixed;
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 0.5rem;
+            padding: 0.5rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
+            z-index: 999;
+            display: none;
+        }
+        
+        .context-menu.active {
+            display: block;
+        }
+        
+        .context-menu-item {
+            padding: 0.5rem 1rem;
+            cursor: pointer;
+            border-radius: 0.25rem;
+            transition: background 0.2s;
+            white-space: nowrap;
+        }
+        
+        .context-menu-item:hover {
+            background: #334155;
+        }
+        
+        /* Search Bar */
+        .search-bar {
+            position: relative;
+            flex: 1;
+            max-width: 500px;
+        }
+        
+        .search-input {
+            width: 100%;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 0.5rem;
+            padding: 0.5rem 1rem 0.5rem 2.5rem;
+            color: #e2e8f0;
+        }
+        
+        .search-icon {
+            position: absolute;
+            left: 0.75rem;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #64748b;
+        }
+        
+        /* Notification */
+        .notification {
+            position: fixed;
+            top: 1rem;
+            right: 1rem;
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 0.5rem;
+            padding: 1rem 1.5rem;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3);
+            z-index: 1001;
+            display: none;
+            max-width: 400px;
+        }
+        
+        .notification.active {
+            display: block;
+            animation: slideIn 0.3s;
+        }
+        
+        @keyframes slideIn {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        
+        /* Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        
+        ::-webkit-scrollbar-track {
+            background: #1e293b;
+        }
+        
+        ::-webkit-scrollbar-thumb {
+            background: #475569;
+            border-radius: 4px;
+        }
+        
+        ::-webkit-scrollbar-thumb:hover {
+            background: #64748b;
+        }
+    </style>
+</head>
+<body>
+    <div class="app-container" id="app">
+        <!-- Login Screen -->
+        <div id="loginScreen" class="flex items-center justify-center w-full h-full">
+            <div class="bg-gray-800 p-8 rounded-lg shadow-2xl w-96">
+                <h1 class="text-3xl font-bold mb-6 text-center">ML Filesystem</h1>
+                <form id="loginForm" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium mb-2">Username</label>
+                        <input type="text" id="username" class="input" required>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium mb-2">Password</label>
+                        <input type="password" id="password" class="input" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary w-full">
+                        <i class="fas fa-sign-in-alt"></i> Login
+                    </button>
+                </form>
+                <div class="mt-4 text-center text-sm text-gray-400">
+                    Default: admin / admin
+                </div>
+            </div>
+        </div>
+        
+        <!-- Main App (hidden initially) -->
+        <div id="mainApp" style="display: none; width: 100%;">
+            <!-- Sidebar -->
+            <div class="sidebar">
+                <div class="sidebar-header">
+                    <h2 class="text-xl font-bold">ML Filesystem</h2>
+                    <div class="text-sm text-gray-400" id="currentUser"></div>
+                </div>
+                
+                <div class="sidebar-nav">
+                    <div class="nav-item active" data-view="files">
+                        <i class="fas fa-folder"></i>
+                        <span>Files</span>
+                    </div>
+                    <div class="nav-item" data-view="agents">
+                        <i class="fas fa-robot"></i>
+                        <span>ML Agents</span>
+                    </div>
+                    <div class="nav-item" data-view="chains">
+                        <i class="fas fa-link"></i>
+                        <span>File Chains</span>
+                    </div>
+                    <div class="nav-item" data-view="search">
+                        <i class="fas fa-search"></i>
+                        <span>Search</span>
+                    </div>
+                    <div class="nav-item" data-view="activity">
+                        <i class="fas fa-history"></i>
+                        <span>Activity</span>
+                    </div>
+                    <div class="nav-item" data-view="profile">
+                        <i class="fas fa-user"></i>
+                        <span>Profile</span>
+                    </div>
+                </div>
+                
+                <div class="p-4 border-t border-gray-700">
+                    <button class="btn btn-danger w-full" id="logoutBtn">
+                        <i class="fas fa-sign-out-alt"></i>
+                        Logout
+                    </button>
+                </div>
+            </div>
+            
+            <!-- Main Content -->
+            <div class="main-content">
+                <!-- Toolbar -->
+                <div class="toolbar">
+                    <div class="breadcrumb" id="breadcrumb"></div>
+                    
+                    <div class="search-bar">
+                        <i class="fas fa-search search-icon"></i>
+                        <input type="text" class="search-input" placeholder="Search files..." id="quickSearch">
+                    </div>
+                    
+                    <div class="flex gap-2">
+                        <button class="btn btn-primary" id="newFileBtn">
+                            <i class="fas fa-file"></i> New File
+                        </button>
+                        <button class="btn btn-primary" id="newFolderBtn">
+                            <i class="fas fa-folder-plus"></i> New Folder
+                        </button>
+                        <button class="btn btn-secondary" id="uploadBtn">
+                            <i class="fas fa-upload"></i> Upload
+                        </button>
+                        <button class="btn btn-secondary" id="viewToggle" title="Toggle view">
+                            <i class="fas fa-th"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Content Area -->
+                <div class="content-area" id="contentArea">
+                    <!-- Content will be dynamically loaded here -->
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Context Menu -->
+    <div class="context-menu" id="contextMenu">
+        <div class="context-menu-item" data-action="open"><i class="fas fa-folder-open"></i> Open</div>
+        <div class="context-menu-item" data-action="rename"><i class="fas fa-edit"></i> Rename</div>
+        <div class="context-menu-item" data-action="delete"><i class="fas fa-trash"></i> Delete</div>
+        <div class="context-menu-item" data-action="mark-learning"><i class="fas fa-graduation-cap"></i> Mark for Learning</div>
+        <div class="context-menu-item" data-action="add-to-chain"><i class="fas fa-link"></i> Add to Chain</div>
+        <div class="context-menu-item" data-action="properties"><i class="fas fa-info-circle"></i> Properties</div>
+    </div>
+    
+    <!-- Notification -->
+    <div class="notification" id="notification">
+        <div id="notificationContent"></div>
+    </div>
+    
+    <!-- Modals will be added dynamically -->
+    
+    <!-- Scripts -->
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/monaco-editor@0.44.0/min/vs/loader.js"></script>
+    
+    <script>
+        // API Base URL
+        const API_BASE = '/api';
+        
+        // Global State
+        const state = {
+            user: null,
+            currentPath: '/',
+            currentView: 'files',
+            selectedFiles: new Set(),
+            viewMode: 'grid',
+            files: [],
+            agents: [],
+            chains: [],
+            tags: []
+        };
+        
+        // Socket.IO Connection
+        let socket = null;
+        
+        // Initialize App
+        document.addEventListener('DOMContentLoaded', () => {
+            checkAuth();
+            setupEventListeners();
+        });
+        
+        // Check Authentication
+        async function checkAuth() {
+            try {
+                const response = await fetch(`${API_BASE}/auth/me`);
+                if (response.ok) {
+                    const user = await response.json();
+                    state.user = user;
+                    showMainApp();
+                    initializeApp();
+                } else {
+                    showLoginScreen();
+                }
+            } catch (error) {
+                showLoginScreen();
+            }
+        }
+        
+        // Show Login Screen
+        function showLoginScreen() {
+            document.getElementById('loginScreen').style.display = 'flex';
+            document.getElementById('mainApp').style.display = 'none';
+        }
+        
+        // Show Main App
+        function showMainApp() {
+            document.getElementById('loginScreen').style.display = 'none';
+            document.getElementById('mainApp').style.display = 'flex';
+            document.getElementById('currentUser').textContent = state.user.username;
+        }
+        
+        // Initialize App
+        async function initializeApp() {
+            // Connect WebSocket
+            socket = io();
+            
+            socket.on('connect', () => {
+                console.log('WebSocket connected');
+            });
+            
+            socket.on('file_created', (file) => {
+                showNotification('File created: ' + file.name);
+                if (state.currentView === 'files') {
+                    loadFiles(state.currentPath);
+                }
+            });
+            
+            socket.on('file_updated', (file) => {
+                showNotification('File updated: ' + file.name);
+            });
+            
+            socket.on('file_deleted', (data) => {
+                showNotification('File deleted: ' + data.path);
+                if (state.currentView === 'files') {
+                    loadFiles(state.currentPath);
+                }
+            });
+            
+            // Load initial data
+            await loadFiles('/');
+            await loadAgents();
+            await loadChains();
+            await loadTags();
+            
+            renderFiles();
+        }
+        
+        // Setup Event Listeners
+        function setupEventListeners() {
+            // Login form
+            document.getElementById('loginForm').addEventListener('submit', handleLogin);
+            
+            // Logout
+            document.getElementById('logoutBtn').addEventListener('click', handleLogout);
+            
+            // Navigation
+            document.querySelectorAll('.nav-item').forEach(item => {
+                item.addEventListener('click', (e) => {
+                    document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+                    item.classList.add('active');
+                    state.currentView = item.dataset.view;
+                    loadView(state.currentView);
+                });
+            });
+            
+            // Toolbar buttons
+            document.getElementById('newFileBtn').addEventListener('click', showNewFileModal);
+            document.getElementById('newFolderBtn').addEventListener('click', showNewFolderModal);
+            document.getElementById('uploadBtn').addEventListener('click', showUploadModal);
+            document.getElementById('viewToggle').addEventListener('click', toggleView);
+            
+            // Quick search
+            document.getElementById('quickSearch').addEventListener('input', debounce(handleQuickSearch, 300));
+            
+            // Context menu
+            document.addEventListener('click', () => {
+                document.getElementById('contextMenu').classList.remove('active');
+            });
+            
+            // Close modals on background click
+            document.addEventListener('click', (e) => {
+                if (e.target.classList.contains('modal')) {
+                    e.target.classList.remove('active');
+                }
+            });
+        }
+        
+        // Handle Login
+        async function handleLogin(e) {
+            e.preventDefault();
+            
+            const username = document.getElementById('username').value;
+            const password = document.getElementById('password').value;
+            
+            try {
+                const response = await fetch(`${API_BASE}/auth/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    state.user = data.user;
+                    showMainApp();
+                    initializeApp();
+                } else {
+                    const error = await response.json();
+                    showNotification('Login failed: ' + error.error, 'error');
+                }
+            } catch (error) {
+                showNotification('Login failed: ' + error.message, 'error');
+            }
+        }
+        
+        // Handle Logout
+        async function handleLogout() {
+            try {
+                await fetch(`${API_BASE}/auth/logout`, { method: 'POST' });
+                state.user = null;
+                state.files = [];
+                state.agents = [];
+                state.chains = [];
+                if (socket) socket.disconnect();
+                showLoginScreen();
+            } catch (error) {
+                console.error('Logout error:', error);
+            }
+        }
+        
+        // Load Files
+        async function loadFiles(path = '/') {
+            try {
+                const response = await fetch(`${API_BASE}/files?path=${encodeURIComponent(path)}`);
+                if (response.ok) {
+                    const data = await response.json();
+                    state.files = data.files;
+                    state.currentPath = path;
+                    return data.files;
+                }
+            } catch (error) {
+                showNotification('Failed to load files', 'error');
+            }
+            return [];
+        }
+        
+        // Load Agents
+        async function loadAgents() {
+            try {
+                const response = await fetch(`${API_BASE}/agents`);
+                if (response.ok) {
+                    const data = await response.json();
+                    state.agents = data.agents;
+                    return data.agents;
+                }
+            } catch (error) {
+                console.error('Failed to load agents:', error);
+            }
+            return [];
+        }
+        
+        // Load Chains
+        async function loadChains() {
+            try {
+                const response = await fetch(`${API_BASE}/chains`);
+                if (response.ok) {
+                    const data = await response.json();
+                    state.chains = data.chains;
+                    return data.chains;
+                }
+            } catch (error) {
+                console.error('Failed to load chains:', error);
+            }
+            return [];
+        }
+        
+        // Load Tags
+        async function loadTags() {
+            try {
+                const response = await fetch(`${API_BASE}/tags`);
+                if (response.ok) {
+                    const data = await response.json();
+                    state.tags = data.tags;
+                    return data.tags;
+                }
+            } catch (error) {
+                console.error('Failed to load tags:', error);
+            }
+            return [];
+        }
+        
+        // Render Files
+        function renderFiles() {
+            const contentArea = document.getElementById('contentArea');
+            
+            if (state.files.length === 0) {
+                contentArea.innerHTML = `
+                    <div class="text-center py-20 text-gray-400">
+                        <i class="fas fa-folder-open text-6xl mb-4"></i>
+                        <p class="text-xl">This folder is empty</p>
+                        <p class="mt-2">Create a new file or folder to get started</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            if (state.viewMode === 'grid') {
+                renderFileGrid();
+            } else {
+                renderFileList();
+            }
+            
+            updateBreadcrumb();
+        }
+        
+        // Render File Grid
+        function renderFileGrid() {
+            const contentArea = document.getElementById('contentArea');
+            const html = `
+                <div class="file-grid">
+                    ${state.files.map(file => `
+                        <div class="file-item ${state.selectedFiles.has(file.id) ? 'selected' : ''}" 
+                             data-file-id="${file.id}"
+                             data-file-path="${file.path}"
+                             data-is-directory="${file.is_directory}"
+                             onclick="handleFileClick(event, ${file.id})"
+                             ondblclick="handleFileDoubleClick(${file.id})"
+                             oncontextmenu="handleFileContextMenu(event, ${file.id})">
+                            <div class="file-icon">
+                                ${getFileIcon(file)}
+                            </div>
+                            <div class="file-name">${escapeHtml(file.name)}</div>
+                            ${file.is_marked_for_learning ? '<div class="text-xs text-yellow-400 mt-1"><i class="fas fa-graduation-cap"></i></div>' : ''}
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+            contentArea.innerHTML = html;
+        }
+        
+        // Render File List
+        function renderFileList() {
+            const contentArea = document.getElementById('contentArea');
+            const html = `
+                <div class="file-list">
+                    ${state.files.map(file => `
+                        <div class="file-list-item ${state.selectedFiles.has(file.id) ? 'selected' : ''}"
+                             data-file-id="${file.id}"
+                             onclick="handleFileClick(event, ${file.id})"
+                             ondblclick="handleFileDoubleClick(${file.id})"
+                             oncontextmenu="handleFileContextMenu(event, ${file.id})">
+                            <div style="width: 40px;">${getFileIcon(file)}</div>
+                            <div style="flex: 1;">${escapeHtml(file.name)}</div>
+                            <div style="width: 100px;" class="text-gray-400 text-sm">${file.file_type}</div>
+                            <div style="width: 100px;" class="text-gray-400 text-sm">${formatFileSize(file.size)}</div>
+                            <div style="width: 150px;" class="text-gray-400 text-sm">${formatDate(file.modified_at)}</div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+            contentArea.innerHTML = html;
+        }
+        
+        // Get File Icon
+        function getFileIcon(file) {
+            if (file.is_directory) {
+                return '<i class="fas fa-folder" style="color: #3b82f6;"></i>';
+            }
+            
+            const iconMap = {
+                'text': 'fa-file-alt',
+                'code': 'fa-file-code',
+                'pdf': 'fa-file-pdf',
+                'image': 'fa-file-image',
+                'document': 'fa-file-word',
+                'spreadsheet': 'fa-file-excel',
+                'presentation': 'fa-file-powerpoint',
+                'archive': 'fa-file-archive',
+                'audio': 'fa-file-audio',
+                'video': 'fa-file-video'
+            };
+            
+            const icon = iconMap[file.file_type] || 'fa-file';
+            return `<i class="fas ${icon}" style="color: #64748b;"></i>`;
+        }
+        
+        // Handle File Click
+        function handleFileClick(event, fileId) {
+            if (event.ctrlKey || event.metaKey) {
+                if (state.selectedFiles.has(fileId)) {
+                    state.selectedFiles.delete(fileId);
+                } else {
+                    state.selectedFiles.add(fileId);
+                }
+            } else {
+                state.selectedFiles.clear();
+                state.selectedFiles.add(fileId);
+            }
+            renderFiles();
+        }
+        
+        // Handle File Double Click
+        async function handleFileDoubleClick(fileId) {
+            const file = state.files.find(f => f.id === fileId);
+            if (!file) return;
+            
+            if (file.is_directory) {
+                await loadFiles(file.path);
+                renderFiles();
+            } else {
+                openFileEditor(file);
+            }
+        }
+        
+        // Handle File Context Menu
+        function handleFileContextMenu(event, fileId) {
+            event.preventDefault();
+            const menu = document.getElementById('contextMenu');
+            menu.style.left = event.pageX + 'px';
+            menu.style.top = event.pageY + 'px';
+            menu.classList.add('active');
+            menu.dataset.fileId = fileId;
+        }
+        
+        // Continue in next part...
+        console.log('ML Filesystem UI Loaded - Part 1');
+    </script>
+</body>
+</html>
