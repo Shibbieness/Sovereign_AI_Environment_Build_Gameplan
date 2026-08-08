@@ -38,6 +38,20 @@ class TestFloor(unittest.TestCase):
         checks = {v.check for v in check_floor(manifest)}
         self.assertIn("attribution", checks)
 
+    def test_source_available_license_is_accepted(self):
+        """Not open source, but a legitimate declaration — the floor records
+        what a flavor is under, it does not enforce an ideology."""
+        for lic in ("PolyForm-Noncommercial-1.0.0", "BUSL-1.1"):
+            manifest = FlavorManifest(
+                name="x", version="0.1.0", license=lic, entrypoint="plugin:run"
+            )
+            self.assertEqual(check_floor(manifest), [], lic)
+
+    def test_open_and_source_available_sets_are_disjoint(self):
+        from vanilla_core.manifest import OPEN_SOURCE_LICENSES, SOURCE_AVAILABLE_LICENSES
+
+        self.assertEqual(OPEN_SOURCE_LICENSES & SOURCE_AVAILABLE_LICENSES, set())
+
     def test_legitimate_vendor_api_capability_passes(self):
         """A flavor that genuinely integrates a vendor API must be able to say
         so. The floor targets misattribution and leaked links, not mentions."""

@@ -7,7 +7,25 @@ from pathlib import Path
 # A flavor may declare any license it actually holds rights to use; these are
 # the ones Vanilla Core recognizes out of the box. Add to this set in the
 # same change that adds the license text/explanation the flavor needs.
-KNOWN_LICENSES = {"AGPL-3.0-or-later", "AGPL-3.0-only", "MIT", "Commercial"}
+#
+# Two families are recognized, and the distinction matters legally:
+#
+#   OPEN SOURCE — OSI-approved. Free to use for any purpose, including
+#   commercially. AGPL adds a share-alike condition; MIT adds nothing.
+#
+#   SOURCE-AVAILABLE — the source is published but commercial or competing
+#   use is restricted. These are NOT open source, cannot be combined with
+#   GPL-family code, and some organizations forbid them outright. A flavor
+#   carrying one of these does not contaminate Vanilla Core, because flavors
+#   never import it — but a *host* that bundles such a flavor inherits the
+#   restriction. See ARCHITECTURE.md "License boundaries".
+OPEN_SOURCE_LICENSES = {"AGPL-3.0-or-later", "AGPL-3.0-only", "MIT"}
+SOURCE_AVAILABLE_LICENSES = {
+    "PolyForm-Noncommercial-1.0.0",
+    "PolyForm-Small-Business-1.0.0",
+    "BUSL-1.1",
+}
+KNOWN_LICENSES = OPEN_SOURCE_LICENSES | SOURCE_AVAILABLE_LICENSES | {"Commercial"}
 
 # Strings that must never appear in a flavor's own manifest metadata: vendor
 # contact addresses, private chat-session links, and vendor co-author
