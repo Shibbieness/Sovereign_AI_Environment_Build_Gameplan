@@ -1,0 +1,16 @@
+name: publication guard
+
+on: [push, pull_request]
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Guard canary tests (must be able to fail)
+        run: python -m unittest tools.test_leakguard -v
+      - name: Scan repository
+        run: python tools/leakguard.py
