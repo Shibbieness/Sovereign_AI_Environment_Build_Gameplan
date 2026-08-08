@@ -70,16 +70,67 @@ status table below is the real one, and it is mostly empty on purpose.
 | ML Filesystem (`sovereign_py/`) | **G3** | Ported. 19 adapter tests, 9/9 capabilities working, no known gaps. Master DB routes two model Bases to two stores (27 tables) |
 | Eidoa | G0 | Licensed. Code exists, untested here |
 | QRen (vendored, `qren/`) | G1 | 15/15 tests; adds 7 Tier-2 block types, Crystal Slime, magic circle, classifier. Overlay plan in QREN-CONSOLIDATION.md |
-| VI Builder (`vi_builder/`) | G0 | 7 modules, untested here |
-| Helix / MenuCode (`helix/`) | G0 | 3 modules, untested here |
-| Lattice (`lattice/`) | G0 | WEAVE/BLOOM validators, untested here |
-| Gilwright (`gilwright/`) | G0 | Ships its own SQLite ledger and a vanilla-weave product |
+| VI Builder (`vi_builder/`) | **G1** | Verified: ingested `sovereign_py/` → 49 Prompt Capsules (4a) + RAG Package (4b, 934 chunks). Run as `python -m vi_builder.cli` |
+| Helix / MenuCode (`helix/`) | **G1** | Verified: 8/8 conventions pass on its reference file, and correctly *fails* an unrelated file — it discriminates |
+| Lattice (`lattice/`) | **G1** | Verified: WEAVE (10-stage doc) and BLOOM (12-stage corpus) both produce real reports |
+| Gilwright (`gilwright/`) | **G1** | Verified: `ragready` runs clean (12 pass/0 fail). Factory bridge + seeded append-only ledger |
 | ASSAY, CRUCIBLE | — | Described in skills; no repo in scope yet |
 | CALS / CASL / Cal's Castle | — | Framework, not yet code in scope |
 | Runic, Helix, Lattice, SPIRE, ACI, Book of Cities | — | Same |
 
-Everything below G3 is a plan, not a component. Ten subsystems at G0 is not
-one tenth of an OS — it is zero of an OS with ten candidates.
+Everything below G3 is a plan, not a component. But the G0 count is now much
+smaller than it looked: a sibling session had already built and run four of
+these, and re-verification here confirmed it. Four subsystems sitting at G1
+are each only a manifest and an adapter away from G3, which changes the
+sequencing — see below.
+
+**All six vendored packages are genuinely decoupled** (verified: zero
+cross-package imports). That matters more than it sounds: each can become a
+flavor independently, in any order, without a dependency untangling step
+first.
+
+## What the sibling session already built
+
+A parallel session (`claude/installed-skills-access-aco5uy`) built these and
+left handoff notes in the repo rather than only in chat. Its claims were
+re-verified here rather than taken on assertion, and they held:
+
+- **`vi_builder/`** — VI Builder Phase 1, L1 daemon through L4. Ingest of
+  `sovereign_py/` produced 49 Prompt Capsule processes and a 934-chunk RAG
+  Package. Note it runs as a package (`python -m vi_builder.cli`), not as a
+  script.
+- **`helix/`** — MenuCode's 8 formatting conventions, validating *Python*
+  files (not markdown).
+- **`lattice/`** — WEAVE and BLOOM validators, both functional.
+- **`gilwright/`** — a factory bridge with an append-only SQLite ledger, and
+  its first shipped product.
+
+### GILWRIGHT has a product waiting on a human decision
+
+`gilwright/products/vanilla-weave/dist/` ships as **ragready**, a
+dependency-free RAG-readiness checker scrubbed out of Lattice's WEAVE
+validator. It runs clean. It has been at lifecycle **ICE** since 2026-07-26,
+sitting in an 8-step `hands_queue` that only the Witness (Mark) can action,
+because the factory's constraint C1 is that agents build and never ship.
+
+**Step 1 blocks the other seven:** `dist/LICENSE` still reads
+`Copyright (c) 2026 [BYLINE PENDING]`. The licensing work in this session
+settled that question — `Shibbieness / M MAOU LLC` — so this is now a
+one-line edit rather than an open decision.
+
+Two inconsistencies worth recording:
+
+1. **The scrub claim is not literally true.** `STATUS.md` reports S1–S7
+   passed with "zero canonical-term/VUP/internal-path hits in dist/", but
+   `[block:` appears in `ragready_common.py`, `README.md`, and `example.md`,
+   and S2 forbids it. It is arguably a false positive — validating
+   `[block: type]` tags is the tool's entire function, so it must contain
+   the pattern — but the checklist needs an explicit exemption rather than a
+   pass that does not hold on inspection.
+2. **License divergence.** ragready ships MIT while this session moved the
+   repositories to AGPL precisely because MIT does not keep derivatives
+   free. For a two-file stdlib utility MIT is defensible, but the
+   inconsistency is a decision, not an oversight to leave implicit.
 
 ## ML Filesystem: what the port found
 
@@ -223,10 +274,18 @@ Recorded as direction, not as work in progress.
 
 ## Immediate next step
 
-Two flavors are now at G3. The next unit of work is the QRen overlay
-(`QREN-CONSOLIDATION.md`), because leaving two divergent copies of one
-subsystem is the exact condition the vanilla/flavor split exists to prevent,
-and it gets worse the longer both are edited.
+Two flavors are at G3 and four more subsystems are at G1 — verified running,
+just without manifests. That is a better position than the earlier status
+implied, and it reorders the work:
 
-After that: the composite runner, designed against the QRen → ML Filesystem
-dependency now that both ends actually run.
+1. **QRen overlay** (`QREN-CONSOLIDATION.md`). Still first: two divergent
+   copies of one subsystem is the exact condition the vanilla/flavor split
+   exists to prevent, and it worsens while both are edited.
+2. **G1 → G3 for the four verified packages.** Each needs only a
+   `flavor.toml` and an adapter with tests. They are decoupled, so this can
+   happen in any order, and none of it blocks on the others.
+3. **The composite runner**, designed against the QRen → ML Filesystem
+   dependency now that both ends actually run.
+
+Not on this list: anything requiring a human to ship. `ragready` waits on
+the Witness, and no agent-side work should touch it.
