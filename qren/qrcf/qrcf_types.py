@@ -54,6 +54,10 @@ class BlockType(IntEnum):
     BONE        = 0x0B  # Structural scaffold, pinned, QRVM-tracked
     VOID        = 0x0C  # Non-linear traversal primitive (QRVM opcodes)
     CRYSTAL     = 0x0D  # Repeating lattice, bonded by dependency edges
+    # Declared in block_types.py since its introduction but missing here,
+    # which made it classifiable and NOT encodable — and an archive
+    # carrying 0x0E would have been silently dropped by every decoder.
+    LIGHT       = 0x0E  # Self-describing navigation: index, glossary, routing table
     CUSTOM      = 0xFF  # User-defined
 
 
@@ -97,6 +101,8 @@ BLOCK_NORMALIZATION = {
     BlockType.BONE:      NormalizationProfile.BINARY,
     BlockType.VOID:      NormalizationProfile.STRICT,
     BlockType.CRYSTAL:   NormalizationProfile.STRUCTURED,
+    # An index or routing table is schema-ordered content, same as CRYSTAL.
+    BlockType.LIGHT:     NormalizationProfile.STRUCTURED,
     BlockType.CUSTOM:    NormalizationProfile.BINARY,
 }
 

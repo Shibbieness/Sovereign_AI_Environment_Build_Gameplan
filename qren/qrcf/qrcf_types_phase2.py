@@ -72,45 +72,17 @@ from .qrcf_types import (
 # 0x01-0x07 FROZEN from Phase 1. 0x08-0x0D new in Phase 2.
 # ═══════════════════════════════════════════════════════════════
 
-class BlockType(IntEnum):
-    # ── Phase 1 (FROZEN) ──────────────────────────────────────
-    TREE        = 0x01  # Structured hierarchies, branching growth
-    ICE         = 0x02  # Snowflake — unique frozen snapshot (Crystal Slime B)
-    FLAME       = 0x03  # Transient/executable QRVM bytecode
-    LIGHTNING   = 0x04  # Fast-path AOT compiled, deterministic
-    FRACTAL     = 0x05  # Self-similar, recursive (AI/ML weights)
-    GEOMETRIC   = 0x06  # Regular deterministic layouts
-    AMORPHOUS   = 0x07  # Free-form evolving user data (Crystal Slime A)
-    # ── Phase 2 (new) ─────────────────────────────────────────
-    NESTED      = 0x08  # ○ Complete inner QRenCode (QRen-in-QRen)
-    RUNIC       = 0x09  # Pure Runic script, glyph-dominant executable
-    MYCELIUM    = 0x0A  # Peer-network graph, distributed root-web
-    BONE        = 0x0B  # Technorganic structural scaffold, pinned anchor
-    VOID        = 0x0C  # QRVM non-linear jump instruction
-    CRYSTAL     = 0x0D  # Gemstone lattice — repeating network structure
-    # ── Custom ────────────────────────────────────────────────
-    CUSTOM      = 0xFF  # User-defined
+# BlockType and BLOCK_NORMALIZATION were duplicated here, byte-identical to
+# qrcf_types.py — two definitions of one concept with only one maintained,
+# which is how an adapter's hand-rolled copy of a query silently diverged
+# from its source earlier in this project. Verified identical (14 types,
+# same codes, same profiles) before removal, then imported instead.
+#
+# The wire enum is now the single definition, and it also carries LIGHT
+# (0x0E), which this file never had.
+from .qrcf_types import BlockType, BLOCK_NORMALIZATION  # noqa: F401
 
 
-# ── Default normalization per block type ──────────────────────
-BLOCK_NORMALIZATION = {
-    # Phase 1 (unchanged)
-    BlockType.TREE:      NormalizationProfile.SEMANTIC,
-    BlockType.ICE:       NormalizationProfile.STRICT,    # unique snapshot
-    BlockType.FLAME:     NormalizationProfile.STRICT,
-    BlockType.LIGHTNING: NormalizationProfile.STRICT,
-    BlockType.FRACTAL:   NormalizationProfile.STRICT,
-    BlockType.GEOMETRIC: NormalizationProfile.STRUCTURED,
-    BlockType.AMORPHOUS: NormalizationProfile.LOOSE,
-    # Phase 2
-    BlockType.NESTED:    NormalizationProfile.BINARY,    # inner QRCF = raw
-    BlockType.RUNIC:     NormalizationProfile.STRICT,    # glyphs are precise
-    BlockType.MYCELIUM:  NormalizationProfile.SEMANTIC,  # peer nodes normalized
-    BlockType.BONE:      NormalizationProfile.BINARY,    # structural, raw
-    BlockType.VOID:      NormalizationProfile.STRICT,    # jump target is exact
-    BlockType.CRYSTAL:   NormalizationProfile.STRUCTURED,# lattice is regular
-    BlockType.CUSTOM:    NormalizationProfile.BINARY,
-}
 
 # ── Default compression per block type ────────────────────────
 BLOCK_COMPRESSION = {

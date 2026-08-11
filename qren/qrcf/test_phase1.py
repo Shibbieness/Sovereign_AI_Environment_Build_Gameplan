@@ -495,6 +495,55 @@ def test_growth_space_still_stops_cleanly(r):
         assert decoded['validation_errors'] == []
         assert decoded['data'] is not None
 
+
+def test_block_type_definitions_agree(r):
+    """There were THREE definitions of block types in this package:
+
+        qrcf/qrcf_types.py        the wire enum
+        qrcf/qrcf_types_phase2.py an exact duplicate of it
+        block_types.py            dataclasses, the only one with LIGHT (0x0E)
+
+    All agreed on codes, which is luck rather than design — nothing checked.
+    The phase-2 duplicate is now an import, and LIGHT was added to the wire
+    enum so it is encodable rather than merely classifiable.
+
+    This test is what keeps them together: adding a type to one and not the
+    other breaks the suite instead of producing a code that classifies fine
+    and vanishes on decode.
+    """
+    import importlib, pathlib as _pl
+    from .. import block_types as semantic
+
+    wire = {b.name: b.value for b in BlockType}
+    sem = {n: getattr(semantic, n).wire_code
+           for n in dir(semantic)
+           if n.isupper() and hasattr(getattr(semantic, n), 'wire_code')}
+
+    assert sem, "block_types.py exposed no types"
+
+    mismatched = {k: (sem[k], wire[k]) for k in sem if k in wire and sem[k] != wire[k]}
+    assert not mismatched, f"code disagreement between layers: {mismatched}"
+
+    only_semantic = {k: hex(v) for k, v in sem.items() if k not in wire}
+    assert not only_semantic, (
+        f"classifiable but not encodable: {only_semantic}. A type the semantic "
+        f"layer knows and the wire enum does not can be assigned and then lost."
+    )
+
+    only_wire = {k: hex(v) for k, v in wire.items() if k not in sem}
+    assert not only_wire, (
+        f"encodable but not described: {only_wire}. A type on the wire with no "
+        f"semantic entry cannot be routed or explained."
+    )
+
+    # And phase 2 must not have grown its own copy back.
+    from . import qrcf_types_phase2 as p2
+    assert p2.BlockType is BlockType, (
+        "qrcf_types_phase2 re-declared BlockType; there must be one definition"
+    )
+
+    r.message = f"{len(wire)} types agree across all three layers"
+
 # ═══════════════════════════════════════════════════════════════
 # RUNNER
 # ═══════════════════════════════════════════════════════════════
@@ -509,6 +558,7 @@ def main():
         ("Binary Round-Trip",                  test_bytes_roundtrip),
         ("XQMEM Standalone Round-Trip",        test_xqmem_roundtrip),
         ("All Wire Block Types",            test_all_block_types),
+        ("Block Type Definitions Agree", test_block_type_definitions_agree),
         ("Normalization Profile Coverage", test_every_block_type_has_a_normalization_profile),
         ("Encoder Flags Round-Trip", test_encoder_flags_round_trip),
         ("Runic Tag Round-Trip",               test_runic_tags),
