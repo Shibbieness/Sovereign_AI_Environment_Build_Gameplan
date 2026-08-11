@@ -1,5 +1,16 @@
 #!/usr/bin/env python3
 """
+ragready — RAG-readiness validator for markdown documents
+
+Copyright (c) 2026 Shibbieness · M MAOU LLC
+SPDX-License-Identifier: AGPL-3.0-or-later
+
+Free to use, modify and redistribute under AGPL-3.0-or-later. If you
+distribute a modified version, or run it as a network service others interact
+with, your complete corresponding source must be available under the same
+licence. A commercial licence waiving that condition is intended to be
+available — see LICENSE-COMMERCIAL.md.
+
 ragready.py — Validate that a markdown document (or directory) is
 structured well enough to chunk and embed for RAG (retrieval-augmented
 generation) use.

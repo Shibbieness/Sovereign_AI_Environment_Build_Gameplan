@@ -1,4 +1,16 @@
+#!/usr/bin/env python3
 """
+ragready — shared helpers
+
+Copyright (c) 2026 Shibbieness · M MAOU LLC
+SPDX-License-Identifier: AGPL-3.0-or-later
+
+Free to use, modify and redistribute under AGPL-3.0-or-later. If you
+distribute a modified version, or run it as a network service others interact
+with, your complete corresponding source must be available under the same
+licence. A commercial licence waiving that condition is intended to be
+available — see LICENSE-COMMERCIAL.md.
+
 ragready_common.py — Shared parsing and helpers for the ragready validator.
 
 Pure stdlib. No external dependencies. Minimal frontmatter parser handles a
