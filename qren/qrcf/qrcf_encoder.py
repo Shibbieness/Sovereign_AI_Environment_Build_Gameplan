@@ -160,7 +160,8 @@ class QRenEncoder:
                output_path: Optional[str] = None,
                output_xqmem: bool = False,
                flags: int = 0,
-               type_header=None) -> dict:
+               type_header=None,
+               resolver=None) -> dict:
         """
         Encode data into a QRCF container.
 
@@ -175,6 +176,11 @@ class QRenEncoder:
             output_path: File path for .qren.png output.
             output_xqmem: Also write .xqmem (raw XQPE bytes).
             flags: BlockHeader flags byte (BlockHeaderFlags bitmask).
+            resolver: Optional RuleChainResolver. When given, effective
+                compression and normalization are taken from the inherited
+                circle rule chain instead of this encoder's hardcoded
+                defaults. Explicit arguments still win — see the precedence
+                note in the body.
             type_header: Optional per-type header for VOID / BONE / CRYSTAL /
                 NESTED (see qrcf_types_phase2.TYPE_HEADERS). Packed
                 UNCOMPRESSED at the front of the data region and counted
@@ -192,11 +198,36 @@ class QRenEncoder:
         if block_type is None:
             block_type = auto_detect_block_type(raw_bytes, filename_hint)
 
-        # 3. Determine compression
-        comp = compression or self.default_compression
+        # 3/4. Determine compression and normalization.
+        #
+        # Precedence, and the order is the whole point:
+        #
+        #   explicit argument  >  inherited circle rule  >  hardcoded default
+        #
+        # A caller who names a compression tier means it, so the rule chain
+        # must not override them — rules are defaults for blocks that did not
+        # choose, not policy imposed on blocks that did. And an inherited rule
+        # must beat the hardcoded default, or the whole inheritance system
+        # resolves correctly and then changes nothing.
+        rule_comp = rule_norm = None
+        if resolver is not None:
+            from .qrcf_circle_rules import encode_with_rules
+            effective = encode_with_rules(raw_bytes, resolver,
+                                          block_type, runic_tags)
+            rule_comp = effective.get('compression')
+            rule_norm = effective.get('normalization')
 
-        # 4. Determine normalization
-        norm = BLOCK_NORMALIZATION.get(block_type, NormalizationProfile.LOOSE)
+        # `is not None`, never `or`. T0_NONE is 0x00 and STRICT is 0x00, so
+        # both are FALSY — `compression or default` silently discarded an
+        # explicit request for no compression and always produced the default
+        # instead. That predates the resolver; asking for T0_NONE has never
+        # worked. An enum whose first member is zero cannot be tested for
+        # presence by truthiness, and the two places it mattered here were
+        # both on the path every single block takes.
+        comp = compression if compression is not None else (
+            rule_comp if rule_comp is not None else self.default_compression)
+        norm = rule_norm if rule_norm is not None else BLOCK_NORMALIZATION.get(
+            block_type, NormalizationProfile.LOOSE)
 
         # 5. Compress data
         compressed = self.compressor.compress(raw_bytes, comp)
