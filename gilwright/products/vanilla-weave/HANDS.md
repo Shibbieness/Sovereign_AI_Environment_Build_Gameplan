@@ -5,10 +5,16 @@ Click-level actions only. No judgment calls beyond what's marked. Mirrors
 hands_queue rows in gilwright.db (product: vanilla-weave) — that table is
 the source of truth; this file is the human-readable copy.
 
-1. Decide the byline for this product: real name / "Shibbieness" / "M MAOU
-   LLC". Edit `dist/LICENSE` line 3 to replace the `[BYLINE PENDING...]`
-   placeholder with the chosen name. (Judgment call — the one thing in this
-   list that isn't purely mechanical.)
+1. ~~Decide the byline.~~ **DONE 2026-08-11 — "Shibbieness".** Mark's
+   decision, executed: `dist/` now carries
+   `Copyright (c) 2026 Shibbieness · M MAOU LLC` in NOTICE.md and in both
+   source headers.
+
+   The licence changed with it. `dist/LICENSE` was MIT, which let anyone
+   take the tool closed-source — directly against the stack rule that what
+   is built on it stays free. It is now **AGPL-3.0-or-later with a
+   commercial option**, the same model as the rest of the stack, per Mark's
+   decision. `dist/LICENSE-COMMERCIAL.md` added.
 2. Pick a distribution channel (gumroad / itch.io / GitHub release / other).
 3. Create or reuse the storefront listing for that channel.
 4. Upload the contents of `dist/` as the downloadable package (zip

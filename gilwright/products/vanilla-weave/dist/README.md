@@ -76,4 +76,17 @@ block_types:
 
 ## License
 
-MIT — see `LICENSE`.
+AGPL-3.0-or-later — see `LICENSE`.
+
+ragready is free to use, modify and redistribute. The one condition: if you
+distribute a modified version, or run it as a network service others interact
+with, your complete corresponding source has to be available under AGPL-3.0
+too. That is the mechanism behind "free to use, and what you build with it
+stays free."
+
+If that does not work for you — you want to ship something closed-source
+built on ragready, or embed it in a product you are not willing to
+open-source — a commercial license waiving the share-alike requirement is
+intended to be available. See `LICENSE-COMMERCIAL.md`.
+
+© 2026 Shibbieness / M MAOU LLC.

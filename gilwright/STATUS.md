@@ -1,11 +1,13 @@
 # STATUS — GILWRIGHT factory
-[block: flame] Updated: 2026-07-26 (Phase 1 — first product built)
+[block: flame] Updated: 2026-08-11 (Phase 1 — first product built; byline + licence settled)
 
 ## HANDS QUEUE (Mark — do these, in order)
 Product: vanilla-weave (ships as "ragready"). Mirrors hands_queue table,
 product_id=1 in gilwright.db.
-1. Decide byline (real name / Shibbieness / M MAOU LLC); edit
-   `products/vanilla-weave/dist/LICENSE` placeholder.
+1. ~~Decide byline; edit dist/LICENSE placeholder.~~ **DONE 2026-08-11 —
+   "Shibbieness".** Also relicensed MIT -> AGPL-3.0-or-later + commercial
+   option, per Mark, so the product matches the stack rule that what is
+   built on it stays free.
 2. Pick a distribution channel (gumroad / itch.io / GitHub release / other).
 3. Create or reuse the storefront listing.
 4. Upload `products/vanilla-weave/dist/` contents as the package.
@@ -25,8 +27,9 @@ LICENSE, example.md). FLAVOR.md documents the scrub mapping. This is the
 only product in ICE — per C5, no new product starts until this one reaches
 CRYSTAL (shipped) or VOID.
 
-Next action: this product is done from the Wright/Scrubber side. It is
-sitting in hands_queue waiting on Mark (Witness) to ship per HANDS.md. No
+Next action: this product is done from the Wright/Scrubber side, and
+step 1 of 8 is now closed. Seven remain, all of them Mark's hands:
+channel, listing, upload, price, description, publish, report back. No
 further agent-side build work on vanilla-weave until Mark reports back
 (step 8) or asks for a revision.
 
