@@ -1,3 +1,12 @@
+from .attest import (
+    Attestor,
+    Direction,
+    FalsifyResult,
+    Measure,
+    Mutation,
+    Reading,
+    falsify,
+)
 from .manifest import FlavorManifest
 from .floor import FloorViolation, check_floor
 from .registry import (
@@ -9,6 +18,13 @@ from .registry import (
 )
 
 __all__ = [
+    "Attestor",
+    "Direction",
+    "FalsifyResult",
+    "Measure",
+    "Mutation",
+    "Reading",
+    "falsify",
     "FlavorManifest",
     "FloorViolation",
     "check_floor",
