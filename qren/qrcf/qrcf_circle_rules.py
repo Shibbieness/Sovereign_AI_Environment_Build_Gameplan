@@ -278,8 +278,16 @@ class CircleRuleSet:
         buf.extend(struct.pack('>H', self.qrvm_permissions))         # 2
         buf.extend(struct.pack('>I', self.promotion_threshold))      # 4
         buf.extend(struct.pack('>H', self.flags))                    # 2
-        buf.extend(b'\x00' * 8)                                      # 8 reserved
-        assert len(buf) == self.FIXED_SIZE
+        # 10 reserved, not 8. The fields above total 22 bytes and
+        # FIXED_SIZE is 32, declared in three places and used by unpack's
+        # length guard; 8 made pack() produce 30 and fail its own assert
+        # on the very first call. The module's __main__ self-test asserts
+        # this exact equality — it had simply never been run, because
+        # nothing imported this module.
+        buf.extend(b'\x00' * 10)                                     # 10 reserved
+        assert len(buf) == self.FIXED_SIZE, (
+            f"CircleRuleSet packed {len(buf)} bytes, FIXED_SIZE is "
+            f"{self.FIXED_SIZE}")
         return bytes(buf)
 
     @classmethod
@@ -426,20 +434,27 @@ class RuleChainResolver:
         SEALED rule sets: if the field is sealed at depth D, values
         declared at depth > D are ignored for that field.
         """
+        # TWO passes, and the order is the whole correctness of SEALED.
+        #
+        # This used to be one pass walking innermost -> outermost, setting
+        # sealed_at when it reached the sealing rule set. That can never work:
+        # the declaration that seals a field is always OUTWARD of the override
+        # it is meant to block, so the walk returned the deeper value and
+        # exited before it ever saw the seal. SEALED silently did nothing.
+        #
+        # Pass 1 finds the shallowest depth that seals this field; pass 2
+        # resolves while ignoring anything declared deeper than that.
         sealed_at: Optional[int] = None
-
-        # Walk from innermost to outermost
-        for rs in reversed(self._chain):
+        for rs in self._chain:                      # outermost -> innermost
             val = getattr(rs, field, inherit_sentinel)
-
-            # Check if this depth seals the field
             if rs.flags & CircleRuleFlags.SEALED and val != inherit_sentinel:
                 sealed_at = rs.declaring_depth
+                break                               # the shallowest seal wins
 
-            # If we're past a sealed depth, ignore overrides from deeper
+        for rs in reversed(self._chain):            # innermost -> outermost
             if sealed_at is not None and rs.declaring_depth > sealed_at:
-                continue
-
+                continue                            # deeper than the seal: ignored
+            val = getattr(rs, field, inherit_sentinel)
             if val != inherit_sentinel:
                 return val
 
