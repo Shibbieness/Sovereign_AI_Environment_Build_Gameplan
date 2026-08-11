@@ -69,7 +69,7 @@ status table below is the real one, and it is mostly empty on purpose.
 | QRen Coder | **G3** | Ported. 15 format tests + 13 adapter tests |
 | ML Filesystem (`sovereign_py/`) | **G3** | Ported. 26 adapter tests, 9/9 capabilities working, no known gaps. Master DB routes two model Bases to two stores (27 tables). **Needs `requirements-flavor.txt` installed** — flask and sqlalchemy are required, not optional |
 | Eidoa | **G1** | 12 tests (2 skip without reportlab). Fixed an import-time NameError that broke every module on any machine without reportlab |
-| QRen (vendored, `qren/`) | G1 | 15/15 tests; adds 7 Tier-2 block types, Crystal Slime, magic circle, classifier. Overlay plan in QREN-CONSOLIDATION.md |
+| QRen (vendored, `qren/`) | **G1** | 20 phase-1 + 21 phase-2 tests. Adds **6** Tier-2 block types (was miscounted as 7) plus LIGHT, all now round-tripped; Crystal Slime, magic circle, classifier. Confirmed a strict superset of the standalone copy — see the amendment in QREN-CONSOLIDATION.md |
 | VI Builder (`vi_builder/`) | **G1** | Verified: ingested `sovereign_py/` → 49 Prompt Capsules (4a) + RAG Package (4b, 934 chunks). Run as `python -m vi_builder.cli` |
 | Helix / MenuCode (`helix/`) | **G1** | Verified: 8/8 conventions pass on its reference file, and correctly *fails* an unrelated file — it discriminates |
 | Lattice (`lattice/`) | **G1** | Verified: WEAVE (10-stage doc) and BLOOM (12-stage corpus) both produce real reports |
