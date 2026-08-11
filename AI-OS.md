@@ -67,8 +67,8 @@ status table below is the real one, and it is mostly empty on purpose.
 |---|---|---|
 | Vanilla Core | — | The kernel; v0.2.0, 11 tests |
 | QRen Coder | **G3** | Ported. 15 format tests + 13 adapter tests |
-| ML Filesystem (`sovereign_py/`) | **G3** | Ported. 19 adapter tests, 9/9 capabilities working, no known gaps. Master DB routes two model Bases to two stores (27 tables) |
-| Eidoa | G0 | Licensed. Code exists, untested here |
+| ML Filesystem (`sovereign_py/`) | **G3** | Ported. 26 adapter tests, 9/9 capabilities working, no known gaps. Master DB routes two model Bases to two stores (27 tables). **Needs `requirements-flavor.txt` installed** — flask and sqlalchemy are required, not optional |
+| Eidoa | **G1** | 12 tests (2 skip without reportlab). Fixed an import-time NameError that broke every module on any machine without reportlab |
 | QRen (vendored, `qren/`) | G1 | 15/15 tests; adds 7 Tier-2 block types, Crystal Slime, magic circle, classifier. Overlay plan in QREN-CONSOLIDATION.md |
 | VI Builder (`vi_builder/`) | **G1** | Verified: ingested `sovereign_py/` → 49 Prompt Capsules (4a) + RAG Package (4b, 934 chunks). Run as `python -m vi_builder.cli` |
 | Helix / MenuCode (`helix/`) | **G1** | Verified: 8/8 conventions pass on its reference file, and correctly *fails* an unrelated file — it discriminates |
@@ -83,6 +83,27 @@ smaller than it looked: a sibling session had already built and run four of
 these, and re-verification here confirmed it. Four subsystems sitting at G1
 are each only a manifest and an adapter away from G3, which changes the
 sequencing — see below.
+
+### A gate claim is only as portable as its environment
+
+`sovereign_py` sat at G3 while its suite failed with 2 failures and 11 errors
+on a clean machine. Nothing was wrong with the code: flask and sqlalchemy were
+missing, and installing them took it straight to 19/19 (now 26/26). The claim
+was true, and true only where someone had already done an undocumented step.
+
+G1 says "runs standalone; its own tests pass". That has to mean *on a machine
+that follows the repository's written instructions*, or the gate certifies the
+author's laptop. Two things changed as a result:
+
+- `requirements-flavor.txt` now says these are **required**, not optional, and
+  documents the Debian `blinker` trap that makes pip refuse the install.
+- `--capability status` checks the required floor first and stops with one
+  sentence naming the missing package, instead of reporting on the optional ML
+  stack while the mandatory one is absent.
+
+Worth stating as a rule, because Eidoa had the identical defect at the same
+time: a try/except around an optional import is not degradation until
+something has run with the import actually missing.
 
 **All six vendored packages are genuinely decoupled** (verified: zero
 cross-package imports). That matters more than it sounds: each can become a

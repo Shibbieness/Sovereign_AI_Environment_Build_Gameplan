@@ -59,6 +59,33 @@ _OPTIONAL = (
     "magic",
 )
 
+# Genuinely required. Without any one of these the adapter does not degrade —
+# it fails, and it fails badly: the module path bridge imports
+# server/enhanced_routes.py during install(), so a missing flask surfaces as
+# eleven ImportErrors from inside a bridge the caller never asked about,
+# rather than as one sentence naming what to install.
+#
+# This list exists because the flavor's G3 claim was reproducible only on a
+# machine that already had these. The suite went 2 failures + 11 errors to
+# 19/19 purely by installing them, and nothing in the adapter said so:
+# `status` reported carefully on the OPTIONAL stack while staying silent
+# about the required one. Reporting cheerfully about what is optional while
+# the mandatory floor is missing is worse than not reporting at all.
+_REQUIRED = (
+    "flask",
+    "sqlalchemy",
+)
+
+
+def missing_required() -> list[str]:
+    """Required packages that are absent.
+
+    Uses find_spec rather than __import__: this must be callable before
+    anything else has been touched, and importing flask to find out whether
+    flask is importable is the kind of check that changes what it measures."""
+    import importlib.util
+    return [n for n in _REQUIRED if importlib.util.find_spec(n) is None]
+
 
 class FlavorError(Exception):
     """Bad input to this adapter, kept distinct from the project's errors."""
@@ -184,6 +211,25 @@ def _status(params: dict) -> dict:
     which is when it matters most.
     """
     report: dict = {"ok": True, "optional_subsystems": {}, "errors": []}
+
+    # Required floor first. Reporting on the optional stack while the
+    # mandatory one is missing is how this adapter came to claim G3 in an
+    # environment nobody had written down.
+    absent = missing_required()
+    report["required_packages"] = {
+        n: ("missing" if n in absent else "available") for n in _REQUIRED}
+    if absent:
+        report["ok"] = False
+        report["errors"].append(
+            f"required packages missing: {', '.join(absent)} — "
+            f"install with: pip install -r requirements-flavor.txt "
+            f"(see that file if pip refuses over a distro-managed package)")
+        # Return before _boot(). Continuing would import the bridge, which
+        # imports flask, and bury this one clear sentence under a stack of
+        # ImportErrors from a subsystem the caller never asked about.
+        report["bridge_aliases"] = None
+        report["stores"] = None
+        return report
 
     for name in _OPTIONAL:
         try:

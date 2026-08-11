@@ -1,8 +1,23 @@
 # Minimum dependencies for the Vanilla Core flavor adapter (vanilla_flavor.py).
-# Deliberately smaller than entry/requirements_complete.txt: the heavy ML
-# stack (chromadb, sentence-transformers, scikit-learn, torch) is optional and
-# degrades gracefully — `vanilla-core run flavor.toml --capability status`
-# reports which optional subsystems resolved.
+#
+# REQUIRED, not optional. flask and sqlalchemy are needed for the adapter to
+# work at all: core/module_path_bridge.py imports server/enhanced_routes.py
+# while installing aliases, so a missing flask fails the whole bridge. The
+# adapter's test suite goes from 2 failures + 11 errors to 19/19 purely by
+# installing this file. `--capability status` now names any missing required
+# package in one sentence and stops, instead of reporting on the optional
+# stack while the mandatory floor is absent.
+#
+# The heavy ML stack below (chromadb, sentence-transformers, scikit-learn,
+# torch) is genuinely optional and does degrade gracefully; status reports
+# which of those resolved.
+#
+# INSTALL NOTE — Debian/Ubuntu images: pip may refuse with
+#   "Cannot uninstall blinker x.y.z, RECORD file not found. Hint: The package
+#    was installed by debian."
+# flask depends on blinker, and the distro-managed copy has no pip metadata
+# to uninstall. Either use a virtualenv (preferred), or:
+#   pip install --ignore-installed blinker -r requirements-flavor.txt
 flask
 flask-cors
 flask-socketio
