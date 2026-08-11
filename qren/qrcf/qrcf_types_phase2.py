@@ -130,7 +130,11 @@ def is_crystal_valid(dep_graph_edges: list) -> bool:
     dep_graph_edges: list of edge dicts from Circle 2 dependency_graph['edges']
                      Each edge: {'from': block_id, 'to': block_id, 'type': int}
     """
-    from qrcf_types import EdgeType
+    # Relative: this module lives inside the qrcf package. The absolute
+    # form was a leftover from before the restructure and raised
+    # ModuleNotFoundError on every call — never noticed because nothing
+    # imported this module and nothing tested it.
+    from .qrcf_types import EdgeType
     outgoing_types = {EdgeType.REQUIRES, EdgeType.DERIVED_FROM}
     return any(
         e.get('edge_type') in outgoing_types
@@ -139,7 +143,11 @@ def is_crystal_valid(dep_graph_edges: list) -> bool:
 
 def verify_ice_contract(block_id_hex: str, dep_graph_edges: list) -> bool:
     """ICE blocks must have zero outgoing dependency edges."""
-    from qrcf_types import EdgeType
+    # Relative: this module lives inside the qrcf package. The absolute
+    # form was a leftover from before the restructure and raised
+    # ModuleNotFoundError on every call — never noticed because nothing
+    # imported this module and nothing tested it.
+    from .qrcf_types import EdgeType
     return not any(
         e.get('from') == block_id_hex and
         e.get('edge_type') in {EdgeType.REQUIRES, EdgeType.DERIVED_FROM}
