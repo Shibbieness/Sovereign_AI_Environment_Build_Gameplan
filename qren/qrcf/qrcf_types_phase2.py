@@ -924,3 +924,44 @@ if __name__ == '__main__':
     print("  All Phase 2 type extension self-tests passed.")
     print("=" * 60)
     sys.exit(0)
+
+
+# ═══════════════════════════════════════════════════════════════
+# TYPE HEADER REGISTRY
+# ═══════════════════════════════════════════════════════════════
+#
+# Which block types carry a per-type header, and which class parses it.
+# One mapping, consulted by both encoder and decoder, so the two cannot
+# disagree about what a given type's frame looks like.
+
+TYPE_HEADERS = {
+    BlockType.VOID:    VoidJumpHeader,
+    BlockType.BONE:    BoneBlockHeader,
+    BlockType.CRYSTAL: CrystalLatticeHeader,
+    BlockType.NESTED:  NestedQRenHeader,
+}
+
+
+def unpack_type_header(block_type, data: bytes):
+    """Parse a per-type header, returning (header, bytes_consumed).
+
+    The four header classes do not share a signature — BoneBlockHeader is
+    variable-length and returns (header, consumed), the other three are fixed
+    and return the header alone. Normalising that here means callers never
+    have to know which is which, which is exactly the kind of per-class
+    special case that goes wrong once a fifth type appears.
+    """
+    cls = TYPE_HEADERS.get(block_type)
+    if cls is None:
+        return None, 0
+    result = cls.unpack(data)
+    if isinstance(result, tuple):
+        return result                      # (header, consumed)
+    return result, cls.FIXED_SIZE
+
+
+def pack_type_header(header) -> bytes:
+    """Serialise a per-type header. Present for symmetry with unpack, so both
+    directions are reached through this module rather than one being open-coded
+    at the call site."""
+    return header.pack() if header is not None else b""

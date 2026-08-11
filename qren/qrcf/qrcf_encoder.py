@@ -33,6 +33,7 @@ from typing import Any, Dict, List, Optional
 from pathlib import Path
 
 from .qrcf_types import (
+    BlockHeaderFlags,
     QREN_MAGIC, XQPE_MAGIC, QRCF_VERSION,
     BlockType, CompressionTier, NormalizationProfile, EdgeType,
     QRCFFlags, SectionEntry, BlockHeader, TrailerHeader, IntegrityBlock,
@@ -158,7 +159,8 @@ class QRenEncoder:
                filename_hint: str = "",
                output_path: Optional[str] = None,
                output_xqmem: bool = False,
-               flags: int = 0) -> dict:
+               flags: int = 0,
+               type_header=None) -> dict:
         """
         Encode data into a QRCF container.
 
@@ -173,6 +175,12 @@ class QRenEncoder:
             output_path: File path for .qren.png output.
             output_xqmem: Also write .xqmem (raw XQPE bytes).
             flags: BlockHeader flags byte (BlockHeaderFlags bitmask).
+            type_header: Optional per-type header for VOID / BONE / CRYSTAL /
+                NESTED (see qrcf_types_phase2.TYPE_HEADERS). Packed
+                UNCOMPRESSED at the front of the data region and counted
+                inside data_length, so the block frame stays
+                FIXED_SIZE + tag_len + data_length and a decoder that does not
+                know this block type still skips exactly one block.
 
         Returns:
             dict with archive_id, checksums, sizes, paths, etc.
@@ -197,16 +205,39 @@ class QRenEncoder:
         block_id = content_address(raw_bytes)
 
         # 7. Build the data block (Circle 3)
+        # Per-type header, uncompressed, at the front of the data region.
+        #
+        # Inside data_length rather than between the block header and it: that
+        # keeps the frame arithmetic identical for every reader, so a decoder
+        # meeting an unknown block type skips FIXED_SIZE + tag_len +
+        # data_length and lands on the next block instead of mid-frame.
+        # Outside data_length it would have had to know the type to know the
+        # size, which is precisely what it does not know.
+        type_header_bytes = b""
+        if type_header is not None:
+            from .qrcf_types_phase2 import TYPE_HEADERS, pack_type_header
+            expected = TYPE_HEADERS.get(block_type)
+            if expected is None:
+                raise QRenFormatError(
+                    f"block type {block_type.name} takes no type header")
+            if not isinstance(type_header, expected):
+                raise QRenFormatError(
+                    f"{block_type.name} expects {expected.__name__}, got "
+                    f"{type(type_header).__name__}")
+            type_header_bytes = pack_type_header(type_header)
+            flags |= BlockHeaderFlags.HAS_TYPE_HEADER
+
         block_header = BlockHeader(
             block_id=block_id,
             block_type=block_type,
             normalization=norm,
             compression=comp,
             flags=flags,
-            data_length=len(compressed),  # compressed data length
+            # Covers the type header too — see the note above.
+            data_length=len(type_header_bytes) + len(compressed),
             runic_tags=runic_tags or []
         )
-        circle_3_data = block_header.pack() + compressed
+        circle_3_data = block_header.pack() + type_header_bytes + compressed
 
         # 8. Add growth space
         growth_size = max(64, int(len(circle_3_data) * self.growth_space_percent / 100))

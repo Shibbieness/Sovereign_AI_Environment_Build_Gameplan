@@ -434,6 +434,201 @@ def test_circle_rules_module_self_test_passes(r):
         f"self-test did not report success:\n{out[-400:]}")
     r.message = f"{out.count('[PASS]')} internal checks passed"
 
+
+# ═══════════════════════════════════════════════════════════════
+# WIRING — type headers through the real encode/decode path
+# ═══════════════════════════════════════════════════════════════
+
+def _encoded(block_type, header, payload=None):
+    """Encode a block carrying a per-type header and decode it back."""
+    from .qrcf_encoder import QRenEncoder
+    from .qrcf_decoder import QRenDecoder
+    payload = payload if payload is not None else {"k": block_type.name}
+    with tempfile.TemporaryDirectory() as tmpdir:
+        out = os.path.join(tmpdir, "x.qren.png")
+        QRenEncoder().encode(payload, name="x", block_type=block_type,
+                             type_header=header, output_path=out)
+        return QRenDecoder().decode(out), payload
+
+
+def test_type_headers_round_trip_through_the_real_encoder(r):
+    """The wiring. Until now these four headers packed and unpacked in
+    isolation and no archive had ever carried one."""
+    from .qrcf_types_phase2 import TYPE_HEADERS
+    import json
+
+    cases = [
+        (BlockType.CRYSTAL, CrystalLatticeHeader(lattice_degree=4)),
+        (BlockType.VOID,    VoidJumpHeader.jump_to(depth=2, arc_id=7)),
+        (BlockType.BONE,    BoneBlockHeader(pin_count=3,
+                                            technorganic_profile=b"scaffold")),
+        (BlockType.NESTED,  NestedQRenHeader(depth=1, arc_id=5,
+                                             inner_qrcf_len=4096)),
+    ]
+    assert {bt for bt, _ in cases} == set(TYPE_HEADERS), (
+        "this test does not cover every type in TYPE_HEADERS")
+
+    for bt, header in cases:
+        decoded, payload = _encoded(bt, header)
+        assert decoded['valid'], f"{bt.name}: {decoded['validation_errors']}"
+        assert decoded['data'] == json.dumps(payload).encode(), (
+            f"{bt.name}: payload altered by carrying a type header")
+        assert decoded['blocks'][0]['type_header'] == type(header).__name__
+    r.message = f"{len(cases)} types carried their header through a real archive"
+
+
+
+def test_type_header_object_is_exposed_with_its_values(r):
+    """The class name proves a header was FOUND. It does not prove the fields
+    came back — a header parsed at the wrong offset is still the right class
+    and holds rubbish. So the decoder reports the values too, and this checks
+    them through the public result rather than by reaching into internals."""
+    from .qrcf_encoder import QRenEncoder
+    from .qrcf_decoder import QRenDecoder
+
+    header = CrystalLatticeHeader(lattice_degree=4)
+    with tempfile.TemporaryDirectory() as tmpdir:
+        out = os.path.join(tmpdir, "c.qren.png")
+        QRenEncoder().encode({"k": 1}, name="c", block_type=BlockType.CRYSTAL,
+                             type_header=header, output_path=out)
+        decoded = QRenDecoder().decode(out)
+
+    assert decoded['valid'], decoded['validation_errors']
+    block = decoded['blocks'][0]
+    assert block['type_header'] == "CrystalLatticeHeader"
+    fields = block['type_header_fields']
+    assert fields is not None, "the parsed header exposed no values"
+    assert fields['lattice_degree'] == 4, (
+        f"header found but its value is wrong: {fields}")
+    assert fields['crystal_version'] == header.crystal_version
+    r.message = f"values survived: {fields}"
+
+
+def test_type_header_fields_are_json_safe(r):
+    """This result travels out through the Vanilla Core flavor adapter as
+    JSON. A header carrying raw bytes or an enum would serialise to a
+    TypeError at the boundary, far from the cause."""
+    import json
+    from .qrcf_encoder import QRenEncoder
+    from .qrcf_decoder import QRenDecoder
+
+    # NestedQRenHeader has both a bytes field and an enum field.
+    header = NestedQRenHeader(depth=1, bracket_type=BracketType.SQUARE,
+                              arc_id=5, inner_qrcf_len=4096,
+                              inner_manifest_hash=bytes(range(32)))
+    with tempfile.TemporaryDirectory() as tmpdir:
+        out = os.path.join(tmpdir, "n.qren.png")
+        QRenEncoder().encode({"k": 1}, name="n", block_type=BlockType.NESTED,
+                             type_header=header, output_path=out)
+        decoded = QRenDecoder().decode(out)
+
+    fields = decoded['blocks'][0]['type_header_fields']
+    json.dumps(decoded['blocks'])            # must not raise
+    assert fields['inner_manifest_hash'] == bytes(range(32)).hex(), (
+        "bytes field was not rendered as hex")
+    assert fields['bracket_type'] == BracketType.SQUARE.name, (
+        "enum field was not rendered as its name")
+    assert fields['inner_qrcf_len'] == 4096
+    r.message = "bytes -> hex, enum -> name, whole result serialises"
+
+
+def test_flag_is_set_only_when_a_header_is_present(r):
+    """HAS_TYPE_HEADER must reflect reality in both directions. A flag set
+    with no header desynchronises every following byte; a header with no flag
+    is invisible to the reader."""
+    from .qrcf_encoder import QRenEncoder
+    from .qrcf_decoder import QRenDecoder
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        bare = os.path.join(tmpdir, "bare.qren.png")
+        QRenEncoder().encode({"k": 1}, name="bare", block_type=BlockType.CRYSTAL,
+                             output_path=bare)
+        got = QRenDecoder().decode(bare)
+        assert got['valid'], got['validation_errors']
+        assert got['blocks'][0]['type_header'] is None, (
+            "a block encoded without a type header reported one")
+        assert got['blocks'][0]['type_header_fields'] is None
+
+        withhdr = os.path.join(tmpdir, "with.qren.png")
+        QRenEncoder().encode({"k": 1}, name="with", block_type=BlockType.CRYSTAL,
+                             type_header=CrystalLatticeHeader(lattice_degree=2),
+                             output_path=withhdr)
+        got2 = QRenDecoder().decode(withhdr)
+        assert got2['valid'], got2['validation_errors']
+        assert got2['blocks'][0]['type_header'] == "CrystalLatticeHeader"
+        assert got2['blocks'][0]['type_header_fields']['lattice_degree'] == 2
+    r.message = "absent stays absent, present carries its values"
+
+
+def test_a_type_header_on_a_type_that_takes_none_is_refused(r):
+    """TREE has no per-type header. Accepting one would write bytes no
+    decoder knows to read back."""
+    from .qrcf_encoder import QRenEncoder
+    from .qrcf_types import QRenFormatError
+    try:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            QRenEncoder().encode({"k": 1}, name="t", block_type=BlockType.TREE,
+                                 type_header=CrystalLatticeHeader(),
+                                 output_path=os.path.join(tmpdir, "t.png"))
+    except QRenFormatError:
+        return
+    raise AssertionError("TREE accepted a type header it defines no meaning for")
+
+
+def test_the_wrong_header_class_is_refused(r):
+    """CRYSTAL takes a CrystalLatticeHeader. A VoidJumpHeader packs to a
+    different length, so accepting it would misalign the data region while
+    looking entirely plausible."""
+    from .qrcf_encoder import QRenEncoder
+    from .qrcf_types import QRenFormatError
+    try:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            QRenEncoder().encode({"k": 1}, name="c", block_type=BlockType.CRYSTAL,
+                                 type_header=VoidJumpHeader.reset(),
+                                 output_path=os.path.join(tmpdir, "c.png"))
+    except QRenFormatError:
+        return
+    raise AssertionError("CRYSTAL accepted a VoidJumpHeader")
+
+
+def test_frame_stays_skippable_by_a_decoder_that_knows_neither(r):
+    """The reason the type header lives INSIDE data_length.
+
+    Put it between the block header and the data and its size would have to be
+    known to skip the block — which requires knowing the type, which is
+    exactly what an older decoder does not know. Inside data_length, the frame
+    is still FIXED_SIZE + tag_len + data_length for everyone.
+
+    Simulated by narrowing what this decoder recognises: the block type is
+    rewritten to an unused code, so the reader is in the position of one that
+    knows neither the type nor that a header is there."""
+    from .qrcf_encoder import QRenEncoder
+    from .qrcf_decoder import QRenDecoder
+
+    unused = next(c for c in range(1, 255) if c not in {b.value for b in BlockType})
+    with tempfile.TemporaryDirectory() as tmpdir:
+        out = os.path.join(tmpdir, "c.qren.png")
+        QRenEncoder().encode({"k": 1}, name="c", block_type=BlockType.CRYSTAL,
+                             type_header=CrystalLatticeHeader(lattice_degree=4),
+                             output_path=out)
+        blob = open(out, "rb").read()
+
+    dec = QRenDecoder(verify_integrity=False)
+    clean = dec.decode_bytes(blob)
+    bid = bytes.fromhex(clean['blocks'][0]['block_id'])
+    i = blob.find(bid)
+    assert i != -1
+    patched = bytearray(blob)
+    patched[i + 32] = unused
+
+    out2 = dec.decode_bytes(bytes(patched))
+    assert out2['valid'] is False, "an unknown type still reported valid"
+    assert out2['block_count'] == 1, (
+        "the frame was misread: the block was lost rather than preserved, "
+        "which means data_length did not cover the type header"
+    )
+    r.message = "unknown-type reader skips the frame cleanly and keeps the block"
+
 # ═══════════════════════════════════════════════════════════════
 # RUNNER
 # ═══════════════════════════════════════════════════════════════
@@ -461,6 +656,13 @@ def main():
         ("CircleRuleSet Round-Trip",           test_circle_rule_set_round_trip),
         ("SEALED Blocks Deeper Override",      test_sealed_rules_cannot_be_overridden_from_deeper),
         ("Module Self-Test Passes",            test_circle_rules_module_self_test_passes),
+        ("Type Headers Round-Trip Encoded",    test_type_headers_round_trip_through_the_real_encoder),
+        ("Type Header Values Survive",         test_type_header_object_is_exposed_with_its_values),
+        ("Type Header Fields Are JSON-Safe",   test_type_header_fields_are_json_safe),
+        ("Flag Tracks Header Presence",        test_flag_is_set_only_when_a_header_is_present),
+        ("Header On Wrong Type Refused",       test_a_type_header_on_a_type_that_takes_none_is_refused),
+        ("Wrong Header Class Refused",         test_the_wrong_header_class_is_refused),
+        ("Frame Skippable By Older Reader",    test_frame_stays_skippable_by_a_decoder_that_knows_neither),
     ]
 
     print("=" * 72)

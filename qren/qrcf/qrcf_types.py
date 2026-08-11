@@ -142,6 +142,13 @@ class BlockHeaderFlags:
     SUSPENDED      = 0x02  # Block in suspended state (sleeping, not deleted)
     GHOST          = 0x04  # Source removed, block still usable (Ghost BONE)
     RESERVED       = 0x08  # Zero, future use
+    # A per-type header (VoidJump / Bone / CrystalLattice / NestedQRen)
+    # sits at the front of the data region, uncompressed, and is counted
+    # INSIDE data_length. Keeping it inside means the block frame is
+    # still FIXED_SIZE + tag_len + data_length, so a decoder that does
+    # not know this type skips exactly the right number of bytes and
+    # lands on the next block — see _extract_data_blocks.
+    HAS_TYPE_HEADER = 0x10
 
 
 # ═══════════════════════════════════════════════════════════════
