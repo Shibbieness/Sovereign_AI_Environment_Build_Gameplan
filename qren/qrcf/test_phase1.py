@@ -24,6 +24,7 @@ import traceback
 from pathlib import Path
 
 from .qrcf_types import (
+    BLOCK_NORMALIZATION,
     QREN_MAGIC, XQPE_MAGIC, QRCF_VERSION,
     BlockType, CompressionTier, NormalizationProfile,
     SectionEntry, BlockHeader, TrailerHeader, IntegrityBlock,
@@ -229,14 +230,26 @@ def test_xqmem_roundtrip(r):
 
 
 def test_all_block_types(r):
-    """Test 8: Encode with every Phase 1 block type (7 types)."""
+    """Test 8: Encode and round-trip EVERY block type in the wire enum.
+
+    Was 7 hardcoded Phase 1 types. This copy has defined six Tier-2 codes
+    (0x08-0x0D) since, and this test kept iterating the original seven — so
+    "adds 7 Tier-2 block types" in AI-OS.md was an inventory claim with no
+    capability behind it. (The count was also wrong: it is 6.)
+
+    Derived from BlockType rather than listed, so a type added to the enum is
+    covered the moment it exists instead of when someone remembers to extend
+    a literal.
+    """
     encoder = QRenEncoder()
     decoder = QRenDecoder()
-    phase1_types = [
-        BlockType.TREE, BlockType.ICE, BlockType.FLAME, BlockType.LIGHTNING,
-        BlockType.FRACTAL, BlockType.GEOMETRIC, BlockType.AMORPHOUS
-    ]
-    for bt in phase1_types:
+
+    # CUSTOM (0xFF) is a sentinel for caller-defined semantics, not a type
+    # with its own round-trip behaviour.
+    types = [bt for bt in BlockType if bt.name != 'CUSTOM']
+    assert len(types) >= 7, "the wire enum lost block types"
+
+    for bt in types:
         test_data = f"Block type test: {bt.name}"
         with tempfile.TemporaryDirectory() as tmpdir:
             outpath = os.path.join(tmpdir, f"{bt.name.lower()}.qren.png")
@@ -245,8 +258,40 @@ def test_all_block_types(r):
             assert result['block_type'] == bt.name
             decoded = decoder.decode(outpath)
             assert decoded['valid'], f"{bt.name} decode errors: {decoded['validation_errors']}"
-            assert decoded['data'].decode('utf-8') == test_data
-    r.message = f"All {len(phase1_types)} Phase 1 block types passed"
+            assert decoded['data'].decode('utf-8') == test_data, \
+                f"{bt.name} round-trip lost or altered the payload"
+            assert decoded['blocks'][0]['block_type'] == bt.name, \
+                f"{bt.name} decoded as {decoded['blocks'][0]['block_type']}"
+
+    r.message = f"All {len(types)} wire block types round-tripped"
+
+
+def test_every_block_type_has_a_normalization_profile(r):
+    """A type the encoder accepts but BLOCK_NORMALIZATION does not map would
+    fall back silently to whatever the default is. Adding a block type without
+    a profile should break here, not surprise someone downstream."""
+    missing = [bt.name for bt in BlockType
+               if bt.name != 'CUSTOM' and bt not in BLOCK_NORMALIZATION]
+    assert not missing, f"block types with no normalization profile: {missing}"
+    r.message = f"{len(BLOCK_NORMALIZATION)} types mapped"
+
+
+def test_encoder_flags_round_trip(r):
+    """The encoder takes a `flags` parameter that nothing exercised. The three
+    'flags' hits previously in this suite are TrailerHeader.flags — a
+    different field on a different struct."""
+    encoder = QRenEncoder()
+    decoder = QRenDecoder()
+    with tempfile.TemporaryDirectory() as tmpdir:
+        outpath = os.path.join(tmpdir, "flags.qren.png")
+        result = encoder.encode(data={"f": 1}, name="flags",
+                                flags=0x01, output_path=outpath)
+        assert result is not None
+        decoded = decoder.decode(outpath)
+        assert decoded['valid'], f"flags=0x01 broke decode: {decoded['validation_errors']}"
+        assert decoded['data'] is not None
+    r.message = "encode(flags=...) round-trips"
+
 
 
 def test_runic_tags(r):
@@ -463,7 +508,9 @@ def main():
         ("String Round-Trip",                  test_string_roundtrip),
         ("Binary Round-Trip",                  test_bytes_roundtrip),
         ("XQMEM Standalone Round-Trip",        test_xqmem_roundtrip),
-        ("All Phase 1 Block Types",            test_all_block_types),
+        ("All Wire Block Types",            test_all_block_types),
+        ("Normalization Profile Coverage", test_every_block_type_has_a_normalization_profile),
+        ("Encoder Flags Round-Trip", test_encoder_flags_round_trip),
         ("Runic Tag Round-Trip",               test_runic_tags),
         ("Integrity Verification",             test_integrity_verification),
         ("Circle 0 Extraction",                test_circle_0_extraction),
