@@ -1,5 +1,43 @@
 # Changelog
 
+## 0.3.0 — attestation
+
+Adds `vanilla_core.attest`: three disciplines generalised out of ACI so every
+flavor inherits them instead of each one rediscovering them.
+
+**Direction.** A measured quantity is a DEFECT (may only fall) or a
+CAPABILITY (may only rise), and it must say which. A registry that measures
+only defects has an exploitable hole, demonstrated rather than imagined:
+deleting an entire failure corpus took an "untested failures" counter from 1
+to 0, which a defect-only ratchet reported as an improvement while every
+readiness gate still passed — because every gate passes more easily over a
+smaller population. A test reproduces exactly that and confirms a
+capability-direction measure catches it.
+
+**Vacuity.** `count == 0` over an empty population is true and meaningless.
+A DEFECT measure may declare a `population`; when it is empty the reading is
+vacuous and never counts as passing. This closes the attack of clearing a
+check by deleting what it measures rather than by fixing anything.
+
+**Falsifiability.** `falsify()` pairs each check with a mutation that must
+break it. A check that survives its own mutation is decorative. Applied to
+this package's own `check_floor`: all five checks fire against manifests built
+to break them.
+
+Supersession: a CAPABILITY may fall with a recorded reason and a named
+witness. Knowledge legitimately shrinks, so the check is not "did it go down"
+but "did it go down without a record" — which inverts the usual relation
+between a check and a log, since here the log is what makes the decrease
+permissible at all.
+
+Named `attest`, not `floor`. `vanilla_core.floor` already means the minimum a
+flavor must satisfy before Vanilla Core will run it — refuse rather than
+degrade — and ACI uses "floor" for a count that may only rise. Two meanings of
+one word inside one stack is how the canonical Spire lost a day to G-numbered
+plan gates colliding with G-numbered build gates.
+
+26 new tests (11 -> 37 across the package).
+
 All notable changes to this project are documented here. Format loosely
 follows [Keep a Changelog](https://keepachangelog.com/); versioning follows
 [SemVer](https://semver.org/) once there's a public consumer to break.
