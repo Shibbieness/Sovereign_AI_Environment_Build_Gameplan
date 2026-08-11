@@ -9,12 +9,17 @@ touches a real install.
 Run: python -m unittest test_flavor -v
 """
 
+import importlib.util
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 
 import vanilla_flavor
 from vanilla_flavor import CAPABILITIES, KNOWN_GAPS, FlavorError, run
+
+
+ROOT = Path(__file__).resolve().parent
 
 
 class FlavorTestCase(unittest.TestCase):
@@ -79,6 +84,82 @@ class TestStatus(FlavorTestCase):
 
         self.assertIn("part1_foundation", sys.modules)
         self.assertIn("models", sys.modules)
+
+
+class TestRequiredDependencies(FlavorTestCase):
+    """The G3 claim was reproducible only on a machine that already had flask
+    and sqlalchemy installed.
+
+    Nothing said so. `status` reported carefully on the OPTIONAL subsystems
+    while staying silent about the required floor, and a missing flask
+    surfaced as eleven ImportErrors from inside the module path bridge — a
+    subsystem the caller never asked about — rather than one sentence naming
+    what to install.
+
+    Same shape as the reportlab defect in Eidoa: a guard that reads as
+    graceful degradation, written on a machine where the thing never went
+    missing."""
+
+    def test_required_packages_are_declared(self):
+        self.assertIn("flask", vanilla_flavor._REQUIRED)
+        self.assertIn("sqlalchemy", vanilla_flavor._REQUIRED)
+
+    def test_required_and_optional_do_not_overlap(self):
+        """A package in both lists means one of the two claims is false."""
+        self.assertEqual(
+            set(vanilla_flavor._REQUIRED) & set(vanilla_flavor._OPTIONAL), set())
+
+    def test_status_reports_the_required_floor(self):
+        report = self.call("status")
+        self.assertIn("required_packages", report)
+        self.assertEqual(set(report["required_packages"]),
+                         set(vanilla_flavor._REQUIRED))
+
+    def test_missing_required_does_not_import_anything(self):
+        """The probe must be safe to call before the bridge is installed.
+        Importing flask to discover whether flask is importable is a check
+        that changes what it measures."""
+        before = set(sys.modules)
+        vanilla_flavor.missing_required()
+        self.assertEqual(set(sys.modules) - before, set())
+
+    def test_a_missing_required_package_is_one_clear_sentence(self):
+        """The whole point. Not eleven tracebacks from a subsystem nobody
+        asked about — one error naming the package and the fix."""
+        real = importlib.util.find_spec
+        importlib.util.find_spec = (
+            lambda n, *a, **k: None if n == "flask" else real(n, *a, **k))
+        try:
+            report = vanilla_flavor.run("status")
+        finally:
+            importlib.util.find_spec = real
+        self.assertFalse(report["ok"])
+        self.assertEqual(len(report["errors"]), 1, report["errors"])
+        self.assertIn("flask", report["errors"][0])
+        self.assertIn("requirements-flavor.txt", report["errors"][0])
+
+    def test_status_stops_before_booting_when_the_floor_is_missing(self):
+        """Continuing would import the bridge, which imports flask, and bury
+        the clear message under the failure it was trying to explain."""
+        real = importlib.util.find_spec
+        importlib.util.find_spec = (
+            lambda n, *a, **k: None if n == "flask" else real(n, *a, **k))
+        try:
+            report = vanilla_flavor.run("status")
+        finally:
+            importlib.util.find_spec = real
+        self.assertIsNone(report["bridge_aliases"])
+        self.assertIsNone(report["stores"])
+
+    def test_the_requirements_file_documents_the_install_trap(self):
+        """pip refuses to install flask on Debian images over the
+        distro-managed blinker. An undocumented install failure is how a
+        reproducible build quietly stops being reproducible."""
+        text = (ROOT / "requirements-flavor.txt").read_text()
+        self.assertIn("blinker", text)
+        self.assertIn("--ignore-installed", text)
+        for pkg in vanilla_flavor._REQUIRED:
+            self.assertIn(pkg, text, f"{pkg} is required but not in the file")
 
 
 class TestCapabilities(FlavorTestCase):
