@@ -25,6 +25,7 @@ from typing import Any, Dict, List, Optional
 from pathlib import Path
 
 from .qrcf_types import (
+    BlockHeaderFlags,
     QREN_MAGIC, XQPE_MAGIC, QRCF_VERSION,
     BlockType, CompressionTier, NormalizationProfile,
     SectionEntry, BlockHeader, TrailerHeader, IntegrityBlock,
@@ -32,6 +33,33 @@ from .qrcf_types import (
     content_address, merkle_root,
 )
 from .qrcf_encoder import CompressionEngine
+
+
+
+def _summarize_type_header(header):
+    """Render a per-type header as JSON-safe fields.
+
+    The class name alone proves a header was FOUND; it does not prove the
+    fields came back. A header parsed at the wrong offset is still the right
+    class and holds rubbish, so the values have to be visible to be checked —
+    by a test, and by anyone debugging an archive.
+
+    Bytes become hex and enums become names, because this result travels out
+    through the Vanilla Core flavor adapter as JSON.
+    """
+    if header is None:
+        return None
+    import dataclasses
+    out = {}
+    for f in dataclasses.fields(header):
+        v = getattr(header, f.name)
+        if isinstance(v, (bytes, bytearray)):
+            out[f.name] = v.hex()
+        elif hasattr(v, "name") and hasattr(v, "value"):
+            out[f.name] = v.name
+        else:
+            out[f.name] = v
+    return out
 
 
 class QRenDecoder:
@@ -232,6 +260,9 @@ class QRenDecoder:
                 'runic_tags': b['runic_tags'],
                 'data_length': len(b['data']) if b.get('data') is not None else 0,
                 'decoded': b.get('decoded', True),
+                'type_header': type(b['type_header']).__name__
+                                if b.get('type_header') is not None else None,
+                'type_header_fields': _summarize_type_header(b.get('type_header')),
             } for b in data_blocks],
             'data': primary_data,
             'block_count': len(data_blocks),
@@ -356,7 +387,33 @@ class QRenDecoder:
                 )
                 break
 
-            compressed_data = remaining[data_start:data_end]
+            data_region = remaining[data_start:data_end]
+
+            # Per-type header, if this block carries one. It lives
+            # uncompressed at the front of the data region and is counted
+            # inside data_length, so the frame arithmetic above is unaffected
+            # and an older decoder still skips exactly one block.
+            type_header = None
+            if block_header.flags & BlockHeaderFlags.HAS_TYPE_HEADER:
+                from .qrcf_types_phase2 import TYPE_HEADERS, unpack_type_header
+                if block_header.block_type not in TYPE_HEADERS:
+                    errors.append(
+                        f"block at offset {pos} sets HAS_TYPE_HEADER but "
+                        f"{block_header.block_type.name} defines none"
+                    )
+                else:
+                    try:
+                        type_header, consumed = unpack_type_header(
+                            block_header.block_type, data_region)
+                        data_region = data_region[consumed:]
+                    except Exception as exc:
+                        errors.append(
+                            f"{block_header.block_type.name} type header at "
+                            f"offset {pos} did not parse: {exc}"
+                        )
+                        type_header = None
+
+            compressed_data = data_region
 
             try:
                 raw_data = self.compressor.decompress(
@@ -385,6 +442,7 @@ class QRenDecoder:
                 'runic_tags': block_header.runic_tags,
                 'data': raw_data,
                 'decoded': True,
+                'type_header': type_header,
             })
 
             pos += data_end
