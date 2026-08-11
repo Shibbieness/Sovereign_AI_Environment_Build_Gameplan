@@ -1,5 +1,38 @@
 # QRen consolidation — what differs, and what to overlay
 
+> **AMENDED 2026-08-11 after measuring instead of reading.** Two claims below
+> were wrong and are corrected here rather than edited away, because the
+> reasoning that produced them is the useful part.
+>
+> **1. The direction is inverted.** "Recommended overlay" step 1 says to keep
+> the standalone repo's QRCF because it is "the frozen canonical format". It
+> is not. Only the *vendored* copy carries
+> `STATUS: PHASE 1 FROZEN. Wire format locked. 15/15 tests verified.`, and an
+> AST-level comparison of every constant, function, class and member shows the
+> vendored core is a **strict superset**: nothing is removed anywhere, every
+> Tier-1 code and normalization mapping is identical, and it adds six block
+> types, `compute_growth_space()`, `BlockHeaderFlags` and `encode(flags=)`.
+> The decoder has **zero** structural difference — all 240 diff lines are
+> formatting. Following step 1 would have kept the smaller copy and re-added
+> the Tier-2 types by hand.
+>
+> The standalone's one unique asset is `vanilla_flavor.py` + 13 adapter tests
+> + CI, which is what its G3 rests on. That must be carried across; the
+> vendored copy has no adapter at all.
+>
+> **2. "The two are wire-compatible" is true only one way.** Verified by
+> cross-decoding real archives in memory. Standalone→vendored and vendored
+> Tier-1→standalone both round-trip byte-exact. But a vendored **Tier-2**
+> archive read by the standalone decoder returned
+> `valid: True, blocks: 0, data: None` — silent total data loss reported as
+> success. The defect was in **both** copies (the vendored one simply knows
+> six more codes, so it fired at 0x0E instead of 0x08) and is now fixed in
+> both, with regression tests verified against the pre-fix code.
+>
+> Step 5 ("retire `qren/`") would have deleted one of the two witnesses to
+> that bug before it was found.
+
+
 Two QRen copies exist. This records exactly what each has, so the merge is a
 decision rather than a guess.
 
@@ -88,5 +121,26 @@ Additive, in dependency order. Nothing here rewrites the frozen core.
 
 ## Status
 
-Analysis only. No files moved yet — this is the decision record, and the
-overlay is the next unit of work on QRen.
+Analysis superseded by measurement; see the amendment at the top. Work
+completed since:
+
+- **Stage 1 — done.** Silent data loss on unknown block types fixed in both
+  copies, before any merge, so the fix could be verified against both.
+  Regression tests confirmed failing against the pre-fix decoders.
+- **Stage 2 — done.** `test_all_block_types` derives its list from the enum
+  instead of naming seven literals, so all 13 wire types round-trip. The
+  `flags` encoder parameter is covered. ("7 Tier-2 block types" was an
+  inventory claim with nothing behind it, and the count was 6.)
+- **Stage 3 — done.** Three block-type definitions collapsed to one.
+  `qrcf_types_phase2`'s duplicate enum is now an import; `LIGHT (0x0E)` added
+  to the wire enum so it is encodable rather than classifiable-and-lost; a
+  cross-layer agreement test keeps them together.
+- **Stage 4 — half done.** The orphaned phase-2 code is now tested (21 tests)
+  and three real bugs in it are fixed: validators that raised on every call,
+  `CircleRuleSet.pack()` failing its own size assertion, and `SEALED` never
+  firing. **Still to do: wiring the four Tier-2 headers into the encode/decode
+  path and `encode_with_rules` as an entry point.**
+- **Stage 5 — not started.** Consolidate onto the vendored core, carrying the
+  flavor adapter across.
+
+Full plan and measurements: the session plan file, and the amendment above.
