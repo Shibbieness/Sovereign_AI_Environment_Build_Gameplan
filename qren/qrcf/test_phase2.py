@@ -629,6 +629,91 @@ def test_frame_stays_skippable_by_a_decoder_that_knows_neither(r):
     )
     r.message = "unknown-type reader skips the frame cleanly and keeps the block"
 
+
+def test_resolver_supplies_defaults_to_the_encoder(r):
+    """encode_with_rules was described as "the bridge between the rule
+    inheritance system and the encoder" and nothing crossed it. The encoder
+    now accepts a resolver and takes its effective compression from the
+    inherited chain instead of a hardcoded default."""
+    from .qrcf_encoder import QRenEncoder
+    from .qrcf_decoder import QRenDecoder
+    from .qrcf_types import CompressionTier
+
+    resolver = RuleChainResolver()
+    resolver.push(CircleRuleSet(declaring_depth=0, chain_id=1,
+                                default_compression=CompressionTier.T1_LZ4))
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        plain = os.path.join(tmpdir, "plain.qren.png")
+        ruled = os.path.join(tmpdir, "ruled.qren.png")
+        a = QRenEncoder().encode({"k": 1}, name="p", output_path=plain)
+        b = QRenEncoder().encode({"k": 1}, name="r", resolver=resolver,
+                                 output_path=ruled)
+        assert a['compression'] != b['compression'], (
+            "the rule chain changed nothing — inheritance resolves and is "
+            "then ignored")
+        assert b['compression'] == CompressionTier.T1_LZ4.name
+        assert QRenDecoder().decode(ruled)['valid']
+    r.message = f"default {a['compression']} -> inherited {b['compression']}"
+
+
+def test_an_explicit_argument_beats_an_inherited_rule(r):
+    """Rules are defaults for blocks that did not choose, not policy imposed
+    on blocks that did. A caller naming a tier means it."""
+    from .qrcf_encoder import QRenEncoder
+    from .qrcf_types import CompressionTier
+
+    resolver = RuleChainResolver()
+    resolver.push(CircleRuleSet(declaring_depth=0, chain_id=1,
+                                default_compression=CompressionTier.T1_LZ4))
+    with tempfile.TemporaryDirectory() as tmpdir:
+        got = QRenEncoder().encode(
+            {"k": 1}, name="x", resolver=resolver,
+            compression=CompressionTier.T2_ZSTD,
+            output_path=os.path.join(tmpdir, "x.qren.png"))
+    assert got['compression'] == CompressionTier.T2_ZSTD.name, (
+        f"an inherited rule overrode an explicit argument: {got['compression']}")
+    r.message = "explicit > inherited > default"
+
+
+def test_a_zero_valued_enum_is_selectable(r):
+    """REGRESSION, and it predates the resolver.
+
+    CompressionTier.T0_NONE is 0x00 and NormalizationProfile.STRICT is 0x00 —
+    both FALSY. The encoder chose with `compression or self.default_compression`,
+    so an explicit request for no compression was silently discarded and the
+    default used instead. Asking for T0_NONE had never worked, on the path
+    every single block takes.
+
+    An enum whose first member is zero cannot be tested for presence by
+    truthiness."""
+    from .qrcf_encoder import QRenEncoder
+    from .qrcf_decoder import QRenDecoder
+    from .qrcf_types import CompressionTier
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        out = os.path.join(tmpdir, "z.qren.png")
+        got = QRenEncoder().encode({"k": 1}, name="z",
+                                   compression=CompressionTier.T0_NONE,
+                                   output_path=out)
+        assert got['compression'] == CompressionTier.T0_NONE.name, (
+            f"asked for T0_NONE, got {got['compression']} — a falsy enum "
+            f"member was treated as absent")
+        decoded = QRenDecoder().decode(out)
+        assert decoded['valid'], decoded['validation_errors']
+        assert decoded['data'] == b'{"k": 1}', "uncompressed payload did not survive"
+
+        # And the same hazard on the rule path.
+        resolver = RuleChainResolver()
+        resolver.push(CircleRuleSet(declaring_depth=0, chain_id=1,
+                                    default_compression=CompressionTier.T0_NONE))
+        ruled = QRenEncoder().encode(
+            {"k": 1}, name="zr", resolver=resolver,
+            output_path=os.path.join(tmpdir, "zr.qren.png"))
+        assert ruled['compression'] == CompressionTier.T0_NONE.name, (
+            "an inherited T0_NONE was treated as absent")
+    r.message = "T0_NONE selectable explicitly and by rule"
+
 # ═══════════════════════════════════════════════════════════════
 # RUNNER
 # ═══════════════════════════════════════════════════════════════
@@ -663,6 +748,9 @@ def main():
         ("Header On Wrong Type Refused",       test_a_type_header_on_a_type_that_takes_none_is_refused),
         ("Wrong Header Class Refused",         test_the_wrong_header_class_is_refused),
         ("Frame Skippable By Older Reader",    test_frame_stays_skippable_by_a_decoder_that_knows_neither),
+        ("Resolver Supplies Encoder Defaults", test_resolver_supplies_defaults_to_the_encoder),
+        ("Explicit Beats Inherited Rule",      test_an_explicit_argument_beats_an_inherited_rule),
+        ("Zero-Valued Enum Is Selectable",     test_a_zero_valued_enum_is_selectable),
     ]
 
     print("=" * 72)
