@@ -77,7 +77,20 @@ CONTENT_SNIFF_RULES: list[tuple[re.Pattern, str, str, float]] = [
     (re.compile(rb"^---\s*\n"), "0x06", "YAML frontmatter: structured navigation", 0.80),
     (re.compile(rb"^#!/.*?(sh|bash|zsh)"), "0x03", "Shebang script: executable", 0.92),
     (re.compile(rb"^---\n.*?lattice_version", re.DOTALL), "0x01", "Lattice WEAVE document: living hierarchy", 0.88),
-    (re.compile("[ᚠ-᛿]".encode("utf-8")), "0x09", "Runic glyphs present: symbolic script", 0.85),
+    # U+16A0..U+16FF (Runic) as explicit UTF-8 sequences.
+    #
+    # This was written "[ᚠ-᛿]".encode("utf-8"), which looks like a codepoint
+    # range and is not one: encoding the string yields the BYTE class
+    # [\xe1\x9a\xa0-\xe1\x9b\xbf], and a bytes-regex reads that as "any byte
+    # in 0xA0-0xE1, plus 0x9A, 0x9B, 0xBF". That is the UTF-8 lead byte of
+    # nearly every non-ASCII script, so 'café', 'Grüße', 'ΑΒΓ' and any
+    # Japanese text all matched — classified RUNIC at 0.85 with
+    # uncertain=False, which is a wrong answer stated confidently rather than
+    # a missed one.
+    #
+    # A character range only survives .encode() when every endpoint is one
+    # byte. These are three.
+    (re.compile(rb"\xe1\x9a[\xa0-\xbf]|\xe1\x9b[\x80-\xbf]"), "0x09", "Runic glyphs present: symbolic script", 0.85),
     (re.compile("ᚨ○|ᛟ○".encode("utf-8")), "0x09", "AiCircle/admathCircle present: RUNIC", 0.95),
     (re.compile(rb"NESTED\[arc_id="), "0x08", "Explicit NESTED composition", 0.95),
     (re.compile(rb"\[block:\s*glyph\]"), "0x09", "WEAVE glyph block: Runic", 0.92),
