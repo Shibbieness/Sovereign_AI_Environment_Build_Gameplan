@@ -100,6 +100,9 @@ DEFAULT_PATTERNS = [
 DEFAULT_ALLOWLIST = {
     "tools/leakguard.py",
     "tools/test_leakguard.py",
+    # documents the install check by showing a commit that must be REFUSED —
+    # an example that does not contain the marker cannot demonstrate the hook
+    "tools/hooks/commit-msg",
     # defines the disallowed markers the flavor floor rejects
     "vanilla-core/src/vanilla_core/manifest.py",
     # plants each marker to prove the floor actually rejects it

@@ -7,10 +7,25 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # --history scans every ref. A shallow clone would give it one
+          # commit to look at and report clean, which is the exact failure
+          # this mode exists to fix: a check whose population is empty
+          # passes by measuring nothing.
+          fetch-depth: 0
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
+
       - name: Guard canary tests (must be able to fail)
         run: python -m unittest tools.test_leakguard -v
-      - name: Scan repository
+
+      - name: Scan file contents
         run: python tools/leakguard.py
+
+      - name: Scan commit messages and author identities
+        # The half that was missing. The file scan above reported
+        # "safe to publish" across a repository with 96 markers in its
+        # commit metadata, because nothing was reading the envelope.
+        run: python tools/leakguard.py --history
