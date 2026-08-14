@@ -1,5 +1,24 @@
 # QRen consolidation — what differs, and what to overlay
 
+> **DONE. The consolidation described below has been executed.** One QRen now
+> exists, in `qren-code-build-1`. This file is kept as the record of how the
+> decision was reached, not as outstanding work — `QREN.md` describes the
+> resulting state.
+>
+> The merge did not follow step 1, for the reason in the amendment immediately
+> below. It also did not follow "take the copy with more tests": the
+> standalone held `test_a_zero_valued_enum_is_selectable`, which the vendored
+> copy lacked, covering a defect present in both. Carrying tests across in
+> both directions is what the merge actually required.
+>
+> A third defect surfaced during the merge itself and was fixed in both copies
+> before either was retired: the classifier's runic rule was a byte class
+> written as though it were a codepoint range, so `café`, `Grüße`, `ΑΒΓ` and
+> Japanese text all classified as RUNIC at 0.85 confidence with
+> `uncertain=False`.
+>
+> Merged suites: 21 + 31 + 50 = **102 tests**, from 32 and 51 separately.
+
 > **AMENDED 2026-08-11 after measuring instead of reading.** Two claims below
 > were wrong and are corrected here rather than edited away, because the
 > reasoning that produced them is the useful part.
@@ -105,6 +124,9 @@ Additive, in dependency order. Nothing here rewrites the frozen core.
    `tokens` (the TB/EA/IF Runic tokens), `circle` (magic-circle inference).
    Each needs adapter tests before being declared, same rule as before.
 5. **Retire `qren/` from this branch** once 2–4 land, so one copy remains.
+   — *Done. Steps 3 and 4 landed first (phase-2 modules wired and tested; all
+   four semantic capabilities declared with adapter tests). `qren/` is gone
+   from this repository; `QREN.md` replaces it.*
 
 ## What breaks this
 

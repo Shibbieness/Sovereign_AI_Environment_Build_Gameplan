@@ -66,10 +66,9 @@ status table below is the real one, and it is mostly empty on purpose.
 | Subsystem | Gate | Notes |
 |---|---|---|
 | Vanilla Core | — | The kernel; v0.2.0, 11 tests |
-| QRen Coder | **G3** | Ported. 15 format tests + 13 adapter tests |
+| QRen Coder (`qren-code-build-1`) | **G3** | Consolidated — the two QRen copies are now one. 21 phase-1 + 31 phase-2 + 50 adapter = **102 tests**, up from 32 and 51 held separately. 9 capabilities: 5 container-format, 4 semantic-layer. See `QREN.md` |
 | ML Filesystem (`sovereign_py/`) | **G3** | Ported. 26 adapter tests, 9/9 capabilities working, no known gaps. Master DB routes two model Bases to two stores (27 tables). **Needs `requirements-flavor.txt` installed** — flask and sqlalchemy are required, not optional |
 | Eidoa | **G1** | 12 tests (2 skip without reportlab). Fixed an import-time NameError that broke every module on any machine without reportlab |
-| QRen (vendored, `qren/`) | **G1** | 20 phase-1 + 21 phase-2 tests. Adds **6** Tier-2 block types (was miscounted as 7) plus LIGHT, all now round-tripped; Crystal Slime, magic circle, classifier. Confirmed a strict superset of the standalone copy — see the amendment in QREN-CONSOLIDATION.md |
 | VI Builder (`vi_builder/`) | **G1** | Verified: ingested `sovereign_py/` → 49 Prompt Capsules (4a) + RAG Package (4b, 934 chunks). Run as `python -m vi_builder.cli` |
 | Helix / MenuCode (`helix/`) | **G1** | Verified: 8/8 conventions pass on its reference file, and correctly *fails* an unrelated file — it discriminates |
 | Lattice (`lattice/`) | **G1** | Verified: WEAVE (10-stage doc) and BLOOM (12-stage corpus) both produce real reports |
@@ -105,10 +104,16 @@ Worth stating as a rule, because Eidoa had the identical defect at the same
 time: a try/except around an optional import is not degradation until
 something has run with the import actually missing.
 
-**All six vendored packages are genuinely decoupled** (verified: zero
+**All five vendored packages are genuinely decoupled** (verified: zero
 cross-package imports). That matters more than it sounds: each can become a
 flavor independently, in any order, without a dependency untangling step
 first.
+
+It was six until QRen was consolidated into `qren-code-build-1`. The count
+fell because a duplicate left, not because a capability did — and the
+decoupling is what made the removal a one-line change: nothing here imported
+`qren/`, so nothing here broke. `QREN.md` records where it went and why there
+were two.
 
 ## What the sibling session already built
 
