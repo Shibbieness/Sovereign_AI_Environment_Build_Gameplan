@@ -8,6 +8,8 @@ from pathlib import Path
 from typing import Optional
 from dotenv import load_dotenv
 
+from . import providers
+
 # Load environment variables
 load_dotenv()
 
@@ -28,7 +30,13 @@ class Config:
     DATABASE_URL = os.getenv('DATABASE_URL', f'sqlite:///{BASE_DIR}/data/database.db')
     
     # ML Configuration
-    ANTHROPIC_API_KEY = os.getenv('ANTHROPIC_API_KEY', None)
+    #
+    # Vendor-neutral. Which provider is active, and the key for it, both come
+    # from core/providers.py. That module still honours a vendor's own
+    # conventional variable, so an existing .env keeps working — through a
+    # lookup table rather than a name compiled into this file.
+    LLM_PROVIDER = os.getenv('LLM_PROVIDER', None)
+    LLM_API_KEY = providers.api_key_for()
     ML_MODEL_PROFILE = os.getenv('ML_MODEL_PROFILE', 'standard')  # minimal, standard, full
     MODELS_DIR = Path(os.getenv('MODELS_DIR', BASE_DIR / 'models'))
     
@@ -121,8 +129,8 @@ class Config:
             errors.append(f"MAX_FILE_SIZE too small: {cls.MAX_FILE_SIZE}")
         
         # Warn if no API key for advanced features
-        if not cls.ANTHROPIC_API_KEY:
-            print("⚠️  No ANTHROPIC_API_KEY set - advanced features will be limited to local ML")
+        if not cls.LLM_API_KEY:
+            print("⚠️  No LLM_API_KEY set - advanced features will be limited to local ML")
         
         # Warn if external API enabled but no key
         if cls.EXTERNAL_API_ENABLED and not cls.EXTERNAL_API_KEY:
@@ -148,7 +156,8 @@ class Config:
         print(f"Features: {', '.join(cls.get_model_profile()['features'])}")
         print(f"Database: {cls.DATABASE_URL}")
         print(f"Sandbox Root: {cls.SANDBOX_ROOT}")
-        print(f"API Key Set: {'Yes' if cls.ANTHROPIC_API_KEY else 'No'}")
+        print(f"LLM Provider: {providers.resolve().id if providers.resolve() else 'none (local ML only)'}")
+        print(f"API Key Set: {'Yes' if cls.LLM_API_KEY else 'No'}")
         print(f"External API: {'Enabled' if cls.EXTERNAL_API_ENABLED else 'Disabled'}")
         print(f"Plugins: {'Enabled' if cls.PLUGINS_ENABLED else 'Disabled'}")
         print(f"System Tray: {'Enabled' if cls.SYSTEM_TRAY_ENABLED else 'Disabled'}")

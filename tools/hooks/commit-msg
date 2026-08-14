@@ -1,0 +1,22 @@
+#!/bin/sh
+# Refuse a commit whose message carries a disallowed marker.
+#
+# This is the hook that would have stopped 96 of them. leakguard's file scan
+# ran in CI and passed every time, because the markers were never in a file —
+# they were in the commit messages, which nothing was reading.
+#
+# Install (git does not version .git/hooks, so this is a one-time step per
+# clone — that is why it is an instruction and not a silent file):
+#
+#     git config core.hooksPath tools/hooks
+#
+# Verify it is live:
+#
+#     git commit --allow-empty -m "test
+#
+#     Co-Authored-By: Claude <noreply@anthropic.com>"
+#
+# should be REFUSED. A hook you have not seen refuse anything is a hook you
+# have not confirmed is installed.
+
+exec python3 "$(git rev-parse --show-toplevel)/tools/leakguard.py" --staged-msg "$1"

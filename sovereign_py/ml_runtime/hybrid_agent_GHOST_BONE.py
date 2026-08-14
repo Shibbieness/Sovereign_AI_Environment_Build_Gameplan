@@ -19,12 +19,12 @@ from core.exceptions import MLException, InferenceError
 from ml.local_backend import LocalMLBackend
 from ml.training_blocks import TrainingBlockManager
 
-# Optional: Anthropic API
-try:
-    from anthropic import Anthropic
-    ANTHROPIC_AVAILABLE = bool(Config.ANTHROPIC_API_KEY)
-except ImportError:
-    ANTHROPIC_AVAILABLE = False
+# Optional: an LLM provider API. Which vendor, if any, is data — see
+# core/providers.py. No SDK is imported here; it is loaded lazily at
+# construction, so this module imports cleanly with no provider installed.
+from core import providers
+
+LLM_AVAILABLE = bool(Config.LLM_API_KEY)
 
 
 class HybridMLAgent:
@@ -55,11 +55,16 @@ class HybridMLAgent:
         self.training_block_manager = training_block_manager or TrainingBlockManager(self.local_ml)
         
         # API client (optional)
-        self.anthropic = None
-        if ANTHROPIC_AVAILABLE:
+        self.llm_provider = providers.resolve()
+        self.llm = None
+        if LLM_AVAILABLE and providers.has_chat_adapter(self.llm_provider):
             try:
-                self.anthropic = Anthropic(api_key=Config.ANTHROPIC_API_KEY)
-            except:
+                self.llm = providers.load_client(
+                    self.llm_provider, api_key=Config.LLM_API_KEY)
+            except providers.ProviderError:
+                # Absent SDK or bad key: stay on the local path, which is what
+                # this agent is built to do. The bare `except:` this replaced
+                # would also have swallowed KeyboardInterrupt.
                 pass
         
         # Load agent from DB if ID provided
@@ -142,7 +147,7 @@ class HybridMLAgent:
                 }
                 
                 # Enhance with API if available and requested
-                if use_api and self.anthropic:
+                if use_api and self.llm:
                     try:
                         api_suggestion = self._api_organize_enhancement(file_info, clustered_files)
                         result['api_enhancement'] = api_suggestion
@@ -221,7 +226,7 @@ class HybridMLAgent:
             local_answer = self.local_ml.answer_question(question, context)
             
             # Check if we should enhance with API
-            if use_api and self.anthropic and local_answer['score'] < 0.5:
+            if use_api and self.llm and local_answer['score'] < 0.5:
                 try:
                     api_answer = self._api_answer_question(question, context)
                     return {
@@ -240,7 +245,7 @@ class HybridMLAgent:
             return local_answer
         except InferenceError as e:
             # Local QA failed, try API if available
-            if use_api and self.anthropic:
+            if use_api and self.llm:
                 try:
                     api_answer = self._api_answer_question(question, context)
                     return {
@@ -325,7 +330,7 @@ class HybridMLAgent:
                 }
             
             # Enhance with API if requested
-            if use_api and self.anthropic:
+            if use_api and self.llm:
                 try:
                     api_analysis = self._api_analyze_chain(chain, texts)
                     result['api_insights'] = api_analysis
@@ -337,17 +342,22 @@ class HybridMLAgent:
         finally:
             session.close()
     
+    def _api_call(self, prompt: str, max_tokens: int = 1000) -> str:
+        """One place the provider is actually called.
+
+        The three _api_* methods below each had their own inlined SDK call with
+        the model name hardcoded three times. Routing them through the adapter
+        means the vendor, the model and the call shape are all configuration
+        rather than repetition."""
+        text, _tokens = providers.chat(
+            self.llm_provider, self.llm, prompt, max_tokens=max_tokens)
+        return text
+
     def _api_answer_question(self, question: str, context: str) -> str:
-        """Use Anthropic API to answer question."""
-        response = self.anthropic.messages.create(
-            model="claude-sonnet-4-20250514",
-            max_tokens=1000,
-            messages=[{
-                "role": "user",
-                "content": f"Context:\n{context}\n\nQuestion: {question}\n\nAnswer based only on the context provided:"
-            }]
-        )
-        return response.content[0].text
+        """Use the configured LLM provider to answer a question."""
+        return self._api_call(
+            f"Context:\n{context}\n\nQuestion: {question}\n\n"
+            "Answer based only on the context provided:")
     
     def _api_organize_enhancement(self, file_info: List[Dict], clusters: Dict) -> str:
         """Use API to enhance organization suggestions."""
@@ -357,12 +367,7 @@ class HybridMLAgent:
         
         prompt += f"\nLocal clustering suggests {len(clusters)} groups. Provide better organization suggestions:"
         
-        response = self.anthropic.messages.create(
-            model="claude-sonnet-4-20250514",
-            max_tokens=500,
-            messages=[{"role": "user", "content": prompt}]
-        )
-        return response.content[0].text
+        return self._api_call(prompt, max_tokens=500)
     
     def _api_analyze_chain(self, chain, texts: List[str]) -> str:
         """Use API to analyze file chain."""
@@ -370,12 +375,7 @@ class HybridMLAgent:
         
         prompt = f"Analyze this file chain '{chain.name}':\n\n{combined}\n\nProvide insights about patterns, themes, and relationships:"
         
-        response = self.anthropic.messages.create(
-            model="claude-sonnet-4-20250514",
-            max_tokens=1000,
-            messages=[{"role": "user", "content": prompt}]
-        )
-        return response.content[0].text
+        return self._api_call(prompt)
     
     def get_capabilities(self) -> Dict[str, Any]:
         """Get agent capabilities."""
@@ -384,9 +384,9 @@ class HybridMLAgent:
         return {
             'agent_type': self.agent_type,
             'local_ml': local_caps,
-            'api_available': self.anthropic is not None,
+            'api_available': self.llm is not None,
             'can_organize': True,
             'can_learn': True,
-            'can_query': local_caps['qa'] or self.anthropic is not None,
+            'can_query': local_caps['qa'] or self.llm is not None,
             'can_analyze': True
         }

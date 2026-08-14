@@ -50,14 +50,28 @@ CAPABILITIES = (
 # to separate stores instead of merging them — see core/master_db.py.
 KNOWN_GAPS: dict[str, str] = {}
 
-_OPTIONAL = (
-    "chromadb",
-    "sentence_transformers",
-    "sklearn",
-    "anthropic",
-    "docker",
-    "magic",
-)
+def _optional_packages() -> tuple[str, ...]:
+    """Optional subsystems, with provider SDK names taken from the registry.
+
+    The vendor name used to be a literal in this tuple. It now comes from
+    core/providers.py, so this adapter — the file a host reads to decide what
+    the flavor needs — names no vendor of its own.
+
+    Imported lazily on purpose: this module must stay importable before the
+    module path bridge is installed, and a top-level import of `core` would
+    make that ordering matter.
+    """
+    base = ("chromadb", "sentence_transformers", "sklearn", "docker", "magic")
+    try:
+        from core.providers import provider_packages
+    except ImportError:
+        # Bridge not up yet. Report what we can rather than raising out of a
+        # probe whose whole job is to answer "what is missing".
+        return base
+    return base + provider_packages()
+
+
+_OPTIONAL = _optional_packages()
 
 # Genuinely required. Without any one of these the adapter does not degrade —
 # it fails, and it fails badly: the module path bridge imports

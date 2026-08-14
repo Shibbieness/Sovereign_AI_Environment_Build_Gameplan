@@ -42,7 +42,7 @@ rather than being fully speculated up front (see `ARCHITECTURE.md`).
 | Area | Standard / reference | Status |
 |---|---|---|
 | License | AGPL-3.0-or-later, dual-licensable commercially | Enforced (`LICENSE`, `LICENSE-COMMERCIAL.md`) — **not attorney-reviewed** |
-| Non-affiliation notice | Explicit statement this project has no Anthropic/vendor affiliation | Enforced (`NOTICE.md`) |
+| Non-affiliation notice | Explicit statement this project has no AI-vendor affiliation | Enforced (`NOTICE.md`) |
 | Attribution/provenance in commits | No AI-vendor co-author trailers or session links in commit history going forward | Policy (see `CONTRIBUTING.md`); not currently machine-enforced against commit messages/history — that would need a repo-level CI or pre-receive hook, not yet built |
 | Per-flavor license declaration | `flavor.license` required and validated against a known set | Enforced |
 | Data handling / privacy | N/A — `vanilla_core` processes no personal data | N/A for now |

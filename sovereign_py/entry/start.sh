@@ -18,13 +18,13 @@ python3 --version || { echo "Error: Python 3 is required"; exit 1; }
 if [ ! -f .env ]; then
     echo ""
     echo "→ Creating .env file..."
-    echo "⚠️  Please enter your Anthropic API key (or press Enter to skip):"
+    echo "⚠️  Please enter your LLM provider API key (or press Enter to skip):"
     read -p "API Key: " api_key
     
     if [ -n "$api_key" ]; then
-        echo "ANTHROPIC_API_KEY=$api_key" > .env
+        echo "LLM_API_KEY=$api_key" > .env
     else
-        echo "ANTHROPIC_API_KEY=your_api_key_here" > .env
+        echo "LLM_API_KEY=your_api_key_here" > .env
         echo "⚠️  Warning: No API key provided. ML features will be limited."
     fi
     

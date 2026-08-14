@@ -7,7 +7,6 @@ import os
 import json
 from datetime import datetime
 from typing import List, Dict, Any, Optional
-from anthropic import Anthropic
 import chromadb
 from chromadb.config import Settings
 from sentence_transformers import SentenceTransformer
@@ -27,17 +26,29 @@ class MLAgentSystem:
         
         Args:
             db: Database instance
-            api_key: Anthropic API key
+            api_key: LLM provider API key; falls back to the environment
         """
         self.db = db or Database()
-        
-        # Initialize Anthropic client
-        self.api_key = api_key or os.getenv('ANTHROPIC_API_KEY')
+
+        # Initialize the LLM client through the provider registry.
+        #
+        # The SDK import used to sit at module scope, which made an optional
+        # dependency mandatory at import time — this file could not be
+        # imported at all on a machine without the SDK, and only escaped
+        # notice because nothing imports it. providers.load_client() imports
+        # lazily, so the degradation below is real rather than decorative.
+        from core import providers
+
+        self.provider = providers.resolve()
+        self.api_key = api_key or providers.api_key_for(self.provider)
+        self.client = None
         if self.api_key:
-            self.client = Anthropic(api_key=self.api_key)
+            try:
+                self.client = providers.load_client(self.provider, api_key=self.api_key)
+            except providers.ProviderError as exc:
+                print(f"Warning: {exc}. ML features will be limited.")
         else:
-            self.client = None
-            print("Warning: No Anthropic API key provided. ML features will be limited.")
+            print("Warning: No LLM API key provided. ML features will be limited.")
         
         # Initialize ChromaDB for vector storage
         self.chroma_client = chromadb.Client(Settings(
@@ -153,7 +164,7 @@ Be detailed, objective, and data-driven in your analysis."""
             Claude's response
         """
         if not self.client:
-            return "Error: Anthropic API not configured. Please set ANTHROPIC_API_KEY."
+            return "Error: no LLM provider configured. Please set LLM_API_KEY."
         
         try:
             response = self.client.messages.create(

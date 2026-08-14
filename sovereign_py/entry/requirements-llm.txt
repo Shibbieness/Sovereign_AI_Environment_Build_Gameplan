@@ -1,0 +1,23 @@
+# Optional LLM provider SDKs.
+#
+# Nothing in this tree imports any of these at module scope, and the whole
+# system runs on local ML with none of them installed. Install the one you
+# actually use, or none.
+#
+# These names are package identifiers on PyPI — the address pip resolves —
+# not endorsements or affiliations. See core/providers.py, which is the only
+# module in this codebase that names a vendor at all, and which can be
+# bypassed entirely by setting LLM_PROVIDER_PACKAGE and LLM_PROVIDER_CLIENT.
+#
+# Pick one:
+
+# anthropic>=0.25.0
+# openai>=1.0.0
+
+# Then set, in your .env:
+#   LLM_API_KEY=...
+#   LLM_PROVIDER=anthropic        # optional; inferred from whichever key is set
+#
+# A provider's own conventional variable (ANTHROPIC_API_KEY, OPENAI_API_KEY)
+# still works — core/providers.py reads it from the registry row rather than
+# from a name hardcoded anywhere.

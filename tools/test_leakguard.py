@@ -139,6 +139,110 @@ class TestExemptions(unittest.TestCase):
             self.assertTrue((repo / entry).is_file(), f"exemption points at nothing: {entry}")
 
 
+def _git(repo: Path, *args: str, **env):
+    e = {"GIT_CONFIG_GLOBAL": "/dev/null", "GIT_CONFIG_SYSTEM": "/dev/null",
+         "PATH": __import__("os").environ.get("PATH", ""),
+         "HOME": str(repo)}
+    e.update(env)
+    return subprocess.run(["git", *args], cwd=str(repo), capture_output=True,
+                          text=True, env=e)
+
+
+def _throwaway_repo(tmp: str) -> Path:
+    repo = Path(tmp)
+    _git(repo, "init", "-q", "-b", "main")
+    _git(repo, "config", "user.name", "Clean")
+    _git(repo, "config", "user.email", "clean@example.invalid")
+    (repo / "f.txt").write_text("nothing interesting\n")
+    _git(repo, "add", "f.txt")
+    _git(repo, "commit", "-q", "-m", "clean commit")
+    return repo
+
+
+class TestHistoryScanning(unittest.TestCase):
+    """The gap that let 39 hits accumulate behind a passing guard.
+
+    leakguard scanned tracked file *contents* and nothing else. Commit
+    messages and author identities are published exactly as much as files
+    are, and nothing was looking at them — so the guard printed
+    "no leaks — safe to publish" across a repository whose every commit
+    carried a vendor address in its trailer.
+
+    A guard that checks the payload and not the envelope is not a guard for
+    anything that travels in the envelope.
+    """
+
+    def test_clean_history_passes(self):
+        """Vacuity check. If --history passed everything it would also pass
+        the dirty cases below for the wrong reason."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = _throwaway_repo(tmp)
+            result = run_guard("--history", cwd=repo)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_marker_in_a_commit_message_is_caught(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = _throwaway_repo(tmp)
+            (repo / "g.txt").write_text("also nothing\n")
+            _git(repo, "add", "g.txt")
+            _git(repo, "commit", "-q", "-m",
+                 "a change\n\nCo-Authored-By: Claude <noreply@anthropic.com>")
+            result = run_guard("--history", cwd=repo)
+            self.assertEqual(result.returncode, 1, "trailer in a commit message went unreported")
+            self.assertIn("noreply@anthropic.com", result.stdout)
+
+    def test_session_link_in_a_commit_message_is_caught(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = _throwaway_repo(tmp)
+            (repo / "g.txt").write_text("x\n")
+            _git(repo, "add", "g.txt")
+            _git(repo, "commit", "-q", "-m",
+                 "a change\n\nSession: https://claude.ai/code/session_01ABC")
+            self.assertEqual(run_guard("--history", cwd=repo).returncode, 1)
+
+    def test_marker_in_the_author_identity_is_caught(self):
+        """The identity is not in the message at all, so a message-only scan
+        would report this repository clean."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = _throwaway_repo(tmp)
+            (repo / "g.txt").write_text("x\n")
+            _git(repo, "add", "g.txt")
+            _git(repo, "commit", "-q", "-m", "an entirely innocent message",
+                 GIT_AUTHOR_NAME="Claude", GIT_AUTHOR_EMAIL="noreply@anthropic.com",
+                 GIT_COMMITTER_NAME="Clean", GIT_COMMITTER_EMAIL="clean@example.invalid")
+            result = run_guard("--history", cwd=repo)
+            self.assertEqual(result.returncode, 1, "vendor address in author identity went unreported")
+            self.assertIn("author", result.stdout.lower())
+
+    def test_marker_on_an_unchecked_out_branch_is_caught(self):
+        """--history must cover every ref, not just HEAD. A branch nobody has
+        checked out is still published."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = _throwaway_repo(tmp)
+            _git(repo, "checkout", "-q", "-b", "side")
+            (repo / "g.txt").write_text("x\n")
+            _git(repo, "add", "g.txt")
+            _git(repo, "commit", "-q", "-m",
+                 "side work\n\nCo-Authored-By: Claude <noreply@anthropic.com>")
+            _git(repo, "checkout", "-q", "main")
+            self.assertEqual(run_guard("--history", cwd=repo).returncode, 1)
+
+    def test_file_scan_alone_misses_all_of_this(self):
+        """The point, stated as a test. The default scan reports clean on a
+        repository whose history is full of the very patterns it forbids —
+        which is precisely what happened here for 26 commits."""
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = _throwaway_repo(tmp)
+            (repo / "g.txt").write_text("x\n")
+            _git(repo, "add", "g.txt")
+            _git(repo, "commit", "-q", "-m",
+                 "a change\n\nCo-Authored-By: Claude <noreply@anthropic.com>")
+            self.assertEqual(run_guard(cwd=repo).returncode, 0,
+                             "file scan should be clean — the files really are")
+            self.assertEqual(run_guard("--history", cwd=repo).returncode, 1,
+                             "history scan must catch what the file scan cannot see")
+
+
 class TestThisRepository(unittest.TestCase):
     def test_repo_is_publishable(self):
         """The repo this guard lives in must itself pass. If this fails, do
@@ -146,6 +250,12 @@ class TestThisRepository(unittest.TestCase):
         repo = HERE.parent
         result = run_guard(cwd=repo)
         self.assertEqual(result.returncode, 0, f"repo is NOT publishable:\n{result.stdout}")
+
+    def test_repo_history_is_publishable(self):
+        """Same claim, for the half nobody was checking."""
+        repo = HERE.parent
+        result = run_guard("--history", cwd=repo)
+        self.assertEqual(result.returncode, 0, f"history is NOT publishable:\n{result.stdout}")
 
 
 if __name__ == "__main__":

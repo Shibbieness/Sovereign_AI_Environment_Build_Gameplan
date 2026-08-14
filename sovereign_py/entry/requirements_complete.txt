@@ -24,7 +24,9 @@ scikit-learn==1.3.2
 numpy==1.26.2
 
 # ML - Optional API Integration
-anthropic==0.8.1
+#   Provider SDKs live in requirements-llm.txt: they are genuinely
+#   optional, the tree imports none of them at module scope, and
+#   which one you install is your choice. See core/providers.py.
 
 # File Processing
 python-magic==0.4.27

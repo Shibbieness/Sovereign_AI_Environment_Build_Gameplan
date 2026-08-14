@@ -18,9 +18,31 @@ This scans file *contents* against a denylist, reports every hit with
 file:line, and exits non-zero. Wire it into CI and a pre-commit hook so the
 rule is enforced by machinery rather than by remembering.
 
+The envelope, not just the payload
+----------------------------------
+For a while this tool scanned tracked file contents and nothing else, and
+reported `130 files scanned, no leaks — safe to publish` across a repository
+where 39 commits carried a vendor address in their author identity and their
+Co-Authored-By trailer.
+
+Every one of those was published exactly as much as any file was. Commit
+messages and author identities travel with the repository, show on every
+GitHub commit page, and survive in every clone. The guard was reading the
+letter and never the envelope it came in.
+
+`--history` closes that. It is a separate mode rather than the default
+because the two answer different questions — "is this working tree safe to
+publish" and "is this repository's record safe to publish" — and a run that
+silently answered both would make the file-scan exit code mean something new
+without saying so.
+
 Usage:
     leakguard.py                      scan git-tracked files in cwd
     leakguard.py path [path ...]      scan specific paths
+    leakguard.py --history            scan commit messages + author identities
+                                        across every ref
+    leakguard.py --staged-msg FILE    scan one prospective commit message
+                                        (for a commit-msg hook)
     leakguard.py --patterns FILE      use a custom denylist (one regex/line)
     leakguard.py --list               print the active denylist and exit
 
@@ -128,12 +150,69 @@ def scan_file(path: Path, regexes: list[re.Pattern]) -> list[tuple[int, str, str
     return hits
 
 
+# ── history ───────────────────────────────────────────────────────────────
+#
+# A commit carries four things a denylist should see: the message, and the
+# author and committer identities (name plus email). The identity fields
+# matter on their own — a commit whose message is spotless still publishes
+# `Claude <noreply@anthropic.com>` on every view of it, and a message-only
+# scan reports that repository clean.
+
+_RECORD_SEP = "\x1e"
+_FIELD_SEP = "\x1f"
+
+
+def scan_history(root: Path, regexes: list[re.Pattern]) -> tuple[list[str], int]:
+    """Return (findings, commits_scanned) across every ref in the repo."""
+    fmt = _FIELD_SEP.join(["%H", "%an <%ae>", "%cn <%ce>", "%B"]) + _RECORD_SEP
+    out = subprocess.run(
+        ["git", "log", "--all", "--no-color", f"--format={fmt}"],
+        cwd=root, capture_output=True, text=True, check=False)
+    if out.returncode != 0:
+        raise SystemExit(f"not a git repository: {root}")
+
+    findings: list[str] = []
+    records = [r for r in out.stdout.split(_RECORD_SEP) if r.strip()]
+    for record in records:
+        parts = record.lstrip("\n").split(_FIELD_SEP)
+        if len(parts) < 4:
+            continue
+        sha, author, committer, message = parts[0], parts[1], parts[2], parts[3]
+        for label, value in (("author", author), ("committer", committer),
+                             ("message", message)):
+            for rx in regexes:
+                for line in value.splitlines() or [""]:
+                    if rx.search(line):
+                        findings.append(
+                            f"  LEAK  {sha[:12]} {label}\n"
+                            f"        pattern: {rx.pattern}\n"
+                            f"        {line.strip()[:120]}")
+    return findings, len(records)
+
+
+def scan_message_file(path: Path, regexes: list[re.Pattern]) -> list[str]:
+    """Scan one prospective commit message. For a commit-msg hook."""
+    findings = []
+    for n, line in enumerate(path.read_text(errors="replace").splitlines(), 1):
+        for rx in regexes:
+            if rx.search(line):
+                findings.append(
+                    f"  LEAK  commit message:{n}\n"
+                    f"        pattern: {rx.pattern}\n"
+                    f"        {line.strip()[:120]}")
+    return findings
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="leakguard")
     ap.add_argument("paths", nargs="*", help="files to scan; default = git-tracked")
     ap.add_argument("--patterns", type=Path, help="denylist file, one regex per line")
     ap.add_argument("--allow", action="append", default=[], help="repo-relative path to skip")
     ap.add_argument("--list", action="store_true", help="print denylist and exit")
+    ap.add_argument("--history", action="store_true",
+                    help="scan commit messages and author identities across all refs")
+    ap.add_argument("--staged-msg", type=Path, metavar="FILE",
+                    help="scan one prospective commit message (commit-msg hook)")
     args = ap.parse_args(argv)
 
     patterns = load_patterns(args.patterns)
@@ -144,6 +223,28 @@ def main(argv: list[str] | None = None) -> int:
 
     regexes = [re.compile(p, re.IGNORECASE) for p in patterns]
     root = Path.cwd()
+
+    if args.staged_msg:
+        findings = scan_message_file(args.staged_msg, regexes)
+        for f in findings:
+            print(f)
+        if findings:
+            print(f"\n  {len(findings)} leak(s) in the commit message — COMMIT BLOCKED")
+            return 1
+        return 0
+
+    if args.history:
+        findings, commits = scan_history(root, regexes)
+        for f in findings:
+            print(f)
+        if findings:
+            print(f"\n  {len(findings)} leak(s) across {commits} commits — PUBLICATION BLOCKED")
+            return 1
+        # Naming the population matters: "0 leaks" over 0 commits is true and
+        # says nothing, and this tool has already shipped one clean-looking
+        # report that was measuring the wrong thing.
+        print(f"  {commits} commits scanned (message + author + committer), no leaks")
+        return 0
     allow = DEFAULT_ALLOWLIST | set(args.allow)
 
     targets = [Path(p) for p in args.paths] if args.paths else tracked_files(root)

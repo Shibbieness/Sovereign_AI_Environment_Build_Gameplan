@@ -59,7 +59,7 @@ full stop:
   contact address, a private chat-session link, a shared-conversation link,
   or a vendor co-author trailer. These are matched specifically rather than
   by vendor name, so a flavor that legitimately integrates a vendor API can
-  still declare that (e.g. `capabilities = ["anthropic-api-routing"]`).
+  still declare that (e.g. `capabilities = ["llm-api-routing"]`).
 
 `load_flavor()` enforces this by default (`enforce_floor=True`) and raises
 `FloorViolationError` rather than importing untrusted/incomplete code. This

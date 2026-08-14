@@ -49,9 +49,9 @@ class APIConnectionManager:
         Create a new API connection.
         
         Args:
-            name: User-friendly name (e.g., "My Claude API")
+            name: User-friendly name (e.g., "My inference API")
             service_type: Type of service (ai_inference, streaming, etc.)
-            provider: Provider name (e.g., "Anthropic", "OpenAI")
+            provider: a key in core/providers.PROVIDERS, or a custom id
             api_key: API key
             owner_id: User ID
             description: Optional description
@@ -248,58 +248,41 @@ class APIConnectionManager:
             return self._test_generic_connection(connection)
     
     def _test_ai_connection(self, connection: APIConnection) -> Dict[str, Any]:
-        """Test AI inference API."""
+        """Test AI inference API.
+
+        Which SDK to load and how to call it both come from core/providers.py.
+        This method used to carry one hardcoded `if provider == '<vendor>'`
+        branch per vendor, each with its own inlined import, model default and
+        response shape — three things to get right per provider, in a method
+        whose job is only to answer "does this key work".
+        """
+        from core import providers
+
         try:
-            if connection.provider.lower() == 'anthropic':
-                # Test Anthropic API
-                from anthropic import Anthropic
-                client = Anthropic(api_key=connection.api_key)
-                
-                response = client.messages.create(
-                    model=connection.model_name or "claude-sonnet-4-20250514",
-                    max_tokens=10,
-                    messages=[{"role": "user", "content": "Hi"}]
-                )
-                
-                return {
-                    'status': 'success',
-                    'message': 'Connection successful',
-                    'details': {
-                        'model': response.model,
-                        'usage': response.usage.input_tokens + response.usage.output_tokens
-                    }
-                }
-            
-            elif connection.provider.lower() == 'openai':
-                # Test OpenAI API
-                import openai
-                client = openai.OpenAI(api_key=connection.api_key)
-                
-                response = client.chat.completions.create(
-                    model=connection.model_name or "gpt-4",
-                    max_tokens=10,
-                    messages=[{"role": "user", "content": "Hi"}]
-                )
-                
-                return {
-                    'status': 'success',
-                    'message': 'Connection successful',
-                    'details': {
-                        'model': response.model,
-                        'usage': response.usage.total_tokens
-                    }
-                }
-            
-            else:
-                # Generic AI API test
-                return self._test_generic_connection(connection)
-        
+            spec = providers.resolve(connection.provider)
+        except providers.ProviderError:
+            spec = None
+
+        if not providers.has_ping_adapter(spec):
+            # No transcribed test for this provider: fall through to the
+            # generic reachability check rather than reporting a failure that
+            # is really "we have no adapter".
+            return self._test_generic_connection(connection)
+
+        try:
+            client = providers.load_client(spec, api_key=connection.api_key)
+            model, tokens = providers.ping(spec, client, model=connection.model_name)
+            return {
+                'status': 'success',
+                'message': 'Connection successful',
+                'details': {'model': model, 'usage': tokens},
+            }
         except Exception as e:
             return {
                 'status': 'failed',
                 'message': f'Test failed: {str(e)}'
             }
-    
+
     def _test_streaming_connection(self, connection: APIConnection) -> Dict[str, Any]:
         """Test streaming service API."""
         # Implement streaming service tests (Twitch, YouTube, etc.)

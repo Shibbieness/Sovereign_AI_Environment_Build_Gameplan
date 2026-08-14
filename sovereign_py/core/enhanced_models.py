@@ -37,7 +37,7 @@ class APIConnection(Base):
     name = Column(String(200), nullable=False)  # User-friendly name
     description = Column(Text)  # Optional description
     service_type = Column(SQLEnum(ServiceType), nullable=False)
-    provider = Column(String(100))  # e.g., "Anthropic", "OpenAI", "Custom"
+    provider = Column(String(100))  # a key in core/providers.PROVIDERS, or a custom id
     
     # Configuration
     api_key = Column(String(500))  # Encrypted in production

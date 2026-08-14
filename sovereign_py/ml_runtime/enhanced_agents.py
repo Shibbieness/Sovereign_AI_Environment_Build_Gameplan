@@ -391,26 +391,39 @@ class EnhancedAgent:
                 'execution_mode': 'api',
             }
 
-        if connection.provider and connection.provider.lower() == 'anthropic':
-            from anthropic import Anthropic
-            client = Anthropic(api_key=connection.api_key)
-            response = client.messages.create(
-                model=connection.model_name or "claude-sonnet-4-20250514",
-                max_tokens=1000,
-                messages=[{
-                    "role": "user",
-                    "content": (
-                        f"Context:\n{context}\n\nQuestion: {question}\n\n"
-                        "Answer based only on the context provided:"
-                    )
-                }]
-            )
-            answer_text = response.content[0].text
-            tokens = response.usage.input_tokens + response.usage.output_tokens
-        else:
+        # Which vendor this is comes from the stored connection row and is
+        # resolved through core/providers.py. No SDK is named here.
+        from core import providers
+
+        try:
+            spec = providers.resolve(connection.provider)
+        except providers.ProviderError:
+            spec = None
+
+        if not providers.has_chat_adapter(spec):
             return {
                 'answer': None,
                 'error': f"no_api_caller_for_provider:{connection.provider}",
+                'score': 0.0,
+                'model_used': connection.model_name or connection.provider,
+                'execution_mode': 'api',
+            }
+
+        prompt = (
+            f"Context:\n{context}\n\nQuestion: {question}\n\n"
+            "Answer based only on the context provided:"
+        )
+        try:
+            client = providers.load_client(spec, api_key=connection.api_key)
+            answer_text, tokens = providers.chat(
+                spec, client, prompt, model=connection.model_name)
+        except providers.ProviderError as exc:
+            # A missing SDK or absent key is a reportable condition, not a
+            # traceback out of a query method that every other failure path
+            # returns a dict from.
+            return {
+                'answer': None,
+                'error': str(exc),
                 'score': 0.0,
                 'model_used': connection.model_name or connection.provider,
                 'execution_mode': 'api',
